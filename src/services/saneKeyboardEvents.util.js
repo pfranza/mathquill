@@ -89,6 +89,7 @@ var saneKeyboardEvents = (function() {
   // create a keyboard events shim that calls callbacks at useful times
   // and exports useful public methods
   return function saneKeyboardEvents(el, handlers) {
+    var androidaround = false;
     var keydown = null;
     var keypress = null;
 
@@ -147,7 +148,12 @@ var saneKeyboardEvents = (function() {
     }
 
     function handleKey() {
-      handlers.keystroke(stringify(keydown), keydown);
+      if (keydown.which === 229) {
+        androidaround = true;
+        textarea.val('\0');
+      } else {
+        handlers.keystroke(stringify(keydown), keydown);
+      }
     }
 
     // -*- event handlers -*- //
@@ -202,7 +208,21 @@ var saneKeyboardEvents = (function() {
       if (hasSelection()) return;
 
       var text = textarea.val();
-      if (text.length === 1) {
+      if (androidaround) {
+        androidaround = false;
+        textarea.val('');
+        if (text.length == 0) {
+          textarea.val('');
+          handlers.keystroke('Backspace', keydown);
+        }
+        else if (text.length >= 2/* text.length === 2 || text.length === 3 && text.charCodeAt(1) >= 0xd800 */) {
+          var txt = text.substring(1);
+          handlers.keystroke(txt === ' ' ? 'Spacebar' : txt, keydown);
+          if (!keydown.isDefaultPrevented()) {
+            handlers.typedText(txt);
+          }
+        }
+      } else if (text.length >= 1/* text.length === 1 || text.length === 2 && text.charCodeAt(0) >= 0xd800 */) {
         textarea.val('');
         handlers.typedText(text);
       } // in Firefox, keys that don't type text, just clear seln, fire keypress

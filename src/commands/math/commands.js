@@ -470,7 +470,7 @@ CharCmds['/'] = P(Fraction, function(_, super_) {
           leftward instanceof (LatexCmds.text || noop) ||
           leftward instanceof SummationNotation ||
           leftward.ctrlSeq === '\\ ' ||
-          /^[,;:]$/.test(leftward.ctrlSeq)
+          /^[.;:]$/.test(leftward.ctrlSeq)
         ) //lookbehind for operator
       ) leftward = leftward[L];
 
@@ -737,6 +737,10 @@ var OPP_BRACKS = {
   '|': '|',
   '\\lVert ' : '\\rVert ',
   '\\rVert ' : '\\lVert ',
+  '&#8970;' : '&#8971;',
+  '\\lfloor ': '\\rfloor ',
+  '&#8968;' : '&#8969;',
+  '\\lceil ': '\\rceil ',
 };
 
 function bindCharBracketPair(open, ctrlSeq) {
@@ -752,6 +756,10 @@ LatexCmds.rangle = bind(Bracket, R, '&lang;', '&rang;', '\\langle ', '\\rangle '
 CharCmds['|'] = bind(Bracket, L, '|', '|', '|', '|');
 LatexCmds.lVert = bind(Bracket, L, '&#8741;', '&#8741;', '\\lVert ', '\\rVert ');
 LatexCmds.rVert = bind(Bracket, R, '&#8741;', '&#8741;', '\\lVert ', '\\rVert ');
+LatexCmds.lfloor = bind(Bracket, L, '&#8970;', '&#8971;', '\\lfloor ', '\\rfloor ');
+LatexCmds.rfloor = bind(Bracket, R, '&#8970;', '&#8971;', '\\lfloor ', '\\rfloor ');
+LatexCmds.lceil = bind(Bracket, L, '&#8968;', '&#8969;', '\\lceil ', '\\rceil ');
+LatexCmds.rceil = bind(Bracket, R, '&#8968;', '&#8969;', '\\lceil ', '\\rceil ');
 
 LatexCmds.left = P(MathCommand, function(_) {
   _.parser = function() {
@@ -843,6 +851,156 @@ LatexCmds.MathQuillMathField = P(MathCommand, function(_, super_) {
   _.latex = function(){ return this.ends[L].latex(); };
   _.text = function(){ return this.ends[L].text(); };
 });
+
+// LatexCmds.parameter = P(MathBlock, function(_, super_) {
+//   _.htmltemplate = '<span>&0</span>';
+//   _.moveDir = function(d) {
+//     console.log(d);
+//   };
+//   _.write = function(cursor, ch) {
+//     console.log(ch);
+//   };
+// });
+
+LatexCmds.formula = P(MathCommand, function(_, super_) {
+  _.init = function() {
+    super_.init.call(this, '\\formula', '<span>&0</span>');
+  };
+
+  _.html = function() {
+    if(typeof this.found === 'undefined') {
+      this.latextemplate = '{' + this.blocks[0].latex() + '}'; //super_.latex.call(this);
+      var patch = function(c, found) {
+        if(c.ctrlSeq === '\\parameter') {
+          // var ends = [];
+          // ends[L] = ends[R] = Object.assign({}, c.ends[L]);
+          // found.push(ends);
+          found.push(c.ends);
+        } else if(c.ends[L] != 0) {
+          patch(c.ends[L], found);
+        }
+        if(c[R] != 0) {
+          patch(c[R], found);
+        }
+      };
+      var found = [];
+      patch(this.ends[L], found);
+      this.content = this.ends[L];
+      this.found = found; // = Object.assign({}, this);
+      // this.oends = this.ends;
+      this.ends = [];
+      (this.ends[L] = found[0][L]).parent = this;
+      (this.ends[R] = found[found.length - 1][R]).parent = this;
+      for (var i = 1; i < found.length; i++) {
+        found[i - 1][L][R] = found[i][R];
+        found[i][R][L] = found[i - 1][L];
+      }
+    }
+    return super_.html.call(this);
+  };
+  _.latex = function() {
+    var blocks = [];
+    this.eachChild(function(c){blocks.push(c.latex())});
+    i = 0;
+    return this.latextemplate.replace(/\\parameter\s*{[^}]*}/g, function(s) {
+      return blocks[i++];
+    });
+  };
+  // _.eachChild = function(f) {
+  //   super_.eachChild.call(this, f);    
+  // }
+
+  // _.children = function() {
+  //   return Fragment(this.oends[L], this.oends[R]);
+  // };
+
+  // _.moveTowards = function(dir, cursor) {
+  //   cursor.insAtDirEnd(-dir, this.found[dir == R ? 0 : (this.found.length - 1) ].ends[-dir]);
+  // }
+
+  // _.postOrder = function(a,b) {
+  //   super_.postOrder.call(this.original, a, b);
+  // }
+  _.reflow = function() {
+    var patch = function(c) {
+      if(c.ctrlSeq !== '\\parameter') {
+        if(typeof c.reflow !== 'undefined') {
+          c.reflow();
+        }
+        if(c.ends[L] != 0) {
+          patch(c.ends[L]);
+        }
+      }
+      if(c[R] != 0) {
+        patch(c[R]);
+      }
+    };
+    patch(this.content);
+  };
+});
+
+LatexCmds.parameter = P(MathCommand, function(_, super_) {
+  _.init = function() {
+    super_.init.call(this, '\\parameter', '<span>&0</span>');
+  };
+});
+
+
+// LatexCmds.parameter = P(MathCommand, function(_, super_) {
+//   _.init = function() {
+//     var span = document.createElement('span');
+//     span.innerHTML = '\\sin\\left(&1\\right)';
+//     MQ.StaticMath(span, { mouseEvents:false });
+//     super_.init.call(this, '\\parameter', span.innerHTML.replace(/\\&amp;/g, '&') /* '<span><span>&0</span><span>&1</span></span>' */);
+//   };
+
+//   // _.write = function(cursor, ch) {
+//   //   console.log(ch);
+//   // }
+//   _.createLeftOf = function(cursor) {
+//     return super_.createLeftOf.call(this, cursor);
+//   }
+//   // _.init = function(ctrlSeq, html, text) {
+//   //   if (!text) text = ctrlSeq && ctrlSeq.length > 1 ? ctrlSeq.slice(1) : ctrlSeq;
+
+//   //   super_.init.call(this, ctrlSeq, html, [ text ]);
+//   // };
+
+//   // _.parser = function() { return Parser.succeed(this); };
+//   _.numBlocks = function() { return 2; };
+
+//   _.replaces = function(replacedFragment) {
+//     replacedFragment.remove();
+//   };
+//   // _.createBlocks = noop;
+
+//   _.moveTowards = function(dir, cursor) {
+//     super_.moveTowards.call(this, dir, cursor);
+//     // cursor.jQ.insDirOf(dir, this.jQ);
+//     // cursor[-dir] = this;
+//     // cursor[dir] = this[dir];
+//   };
+//   _.deleteTowards = function(dir, cursor) {
+//     // cursor[dir] = this.remove()[dir];
+//     super_.deleteTowards.call(this, dir, cursor);
+
+//   };
+//   _.seek = function(pageX, cursor) {
+//     super_.seek.call(this, pageX, cursor);
+//     // // insert at whichever side the click was closer to
+//     // if (pageX - this.jQ.offset().left < this.jQ.outerWidth()/2)
+//     //   cursor.insLeftOf(this);
+//     // else
+//     //   cursor.insRightOf(this);
+//   };
+
+//   // _.html = function(){
+
+//   // };
+//   // _.text = function(){ return this.textTemplate; };
+//   // _.placeCursor = noop;
+//   // _.isEmpty = function(){ return true; };
+// });
 
 // Embed arbitrary things
 // Probably the closest DOM analogue would be an iframe?

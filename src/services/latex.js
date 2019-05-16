@@ -26,6 +26,9 @@ var latexMathParser = (function() {
   // Parsers yielding either MathCommands, or Fragments of MathCommands
   //   (either way, something that can be adopted by a MathBlock)
   var variable = letter.map(function(c) { return Letter(c); });
+  // ~Allow pasting emoticons (Windows), also parse combinded emoticons with U+200D and unicode support es6
+  // ~Chrome is so sad, needs brackets around group to match whole smily
+  // ~/^[^${}\\_^](\u{200D}([^${}\\_^]))?/u
   var symbol = regex(/^[^${}\\_^]/).map(function(c) { return VanillaSymbol(c); });
 
   var controlSequence =
