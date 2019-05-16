@@ -61,6 +61,9 @@ var Cursor = P(Point, function(_) {
   };
   _.insDirOf = function(dir, el) {
     prayDirection(dir);
+    if(el[dir] != 0 && el[dir].ctrlSeq === '\\parameter') {
+      return this.insAtDirEnd(-dir, el[dir].ends[-dir]);
+    }
     this.jQ.insDirOf(dir, el.jQ);
     this.withDirInsertAt(dir, el.parent, el[dir], el);
     this.parent.jQ.addClass('mq-hasCursor');

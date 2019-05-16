@@ -852,30 +852,45 @@ LatexCmds.MathQuillMathField = P(MathCommand, function(_, super_) {
   _.text = function(){ return this.ends[L].text(); };
 });
 
-// LatexCmds.parameter = P(MathBlock, function(_, super_) {
-//   _.htmltemplate = '<span>&0</span>';
-//   _.moveDir = function(d) {
-//     console.log(d);
-//   };
-//   _.write = function(cursor, ch) {
-//     console.log(ch);
-//   };
-// });
-
 LatexCmds.formula = P(MathCommand, function(_, super_) {
   _.init = function() {
     super_.init.call(this, '\\formula', '<span>&0</span>');
   };
 
-  _.html = function() {
+  _.latex = function() {
+    var blocks = [];
+    super_.eachChild.call(this, function(c){blocks.push(c.latex())});
+    i = 0;
+    return this.latextemplate.replace(/\\parameter\s*{[^}]*}/g, function(s) {
+      return blocks[i++];
+    });
+  };
+  _.finalizeTree = function() {
+    // var args = arguments;
+    // var patch = function(c) {
+    //   if(typeof c.finalizeTree !== 'undefined') {
+    //     c.finalizeTree.apply(c, args);
+    //   }
+    //   if(c.ends[L] != 0) {
+    //     patch(c.ends[L]);
+    //   }
+    //   if(c[R] != 0) {
+    //     patch(c[R]);
+    //   }
+    // };
+    // patch(this.content.ends[L]);
     if(typeof this.found === 'undefined') {
-      this.latextemplate = '{' + this.blocks[0].latex() + '}'; //super_.latex.call(this);
+      this.latextemplate = this.blocks[0].latex();
       var patch = function(c, found) {
         if(c.ctrlSeq === '\\parameter') {
-          // var ends = [];
-          // ends[L] = ends[R] = Object.assign({}, c.ends[L]);
-          // found.push(ends);
-          found.push(c.ends);
+          if(c[L] == 0 && c[R] == 0) {
+            var p = c.parent.parent;
+            c.remove();
+            found.push(p.ends);
+            return;
+          } else {
+            found.push(c.ends);
+          }
         } else if(c.ends[L] != 0) {
           patch(c.ends[L], found);
         }
@@ -886,50 +901,37 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       var found = [];
       patch(this.ends[L], found);
       this.content = this.ends[L];
-      this.found = found; // = Object.assign({}, this);
-      // this.oends = this.ends;
-      this.ends = [];
-      (this.ends[L] = found[0][L]).parent = this;
-      (this.ends[R] = found[found.length - 1][R]).parent = this;
-      for (var i = 1; i < found.length; i++) {
-        found[i - 1][L][R] = found[i][R];
-        found[i][R][L] = found[i - 1][L];
+      if(found.length > 0) {
+        (this.ends[L] = found[0][L]).parent = this;
+        (this.ends[R] = found[found.length - 1][R]).parent = this;
+        for (var i = 1; i < found.length; i++) {
+          found[i - 1][L][R] = found[i][R];
+          found[i][R][L] = found[i - 1][L];
+        }
+      } else {
+        this.ends[L] = this.ends[R] = 0;
+        this.moveTowards = function(dir, cursor) {
+          cursor.jQ.insDirOf(dir, this.jQ);
+          cursor[-dir] = this;
+          cursor[dir] = this[dir];
+        };
       }
     }
-    return super_.html.call(this);
-  };
-  _.latex = function() {
-    var blocks = [];
-    this.eachChild(function(c){blocks.push(c.latex())});
-    i = 0;
-    return this.latextemplate.replace(/\\parameter\s*{[^}]*}/g, function(s) {
-      return blocks[i++];
+    super_.eachChild.call(this, function(c){
+      c.deleteOutOf = function(dir, cursor) {
+        cursor.unwrapGramp();
+      };
     });
-  };
-  // _.eachChild = function(f) {
-  //   super_.eachChild.call(this, f);    
-  // }
+    return this;
+  }
 
-  // _.children = function() {
-  //   return Fragment(this.oends[L], this.oends[R]);
-  // };
-
-  // _.moveTowards = function(dir, cursor) {
-  //   cursor.insAtDirEnd(-dir, this.found[dir == R ? 0 : (this.found.length - 1) ].ends[-dir]);
-  // }
-
-  // _.postOrder = function(a,b) {
-  //   super_.postOrder.call(this.original, a, b);
-  // }
   _.reflow = function() {
     var patch = function(c) {
-      if(c.ctrlSeq !== '\\parameter') {
-        if(typeof c.reflow !== 'undefined') {
-          c.reflow();
-        }
-        if(c.ends[L] != 0) {
-          patch(c.ends[L]);
-        }
+      if(typeof c.reflow !== 'undefined') {
+        c.reflow();
+      }
+      if(c.ends[L] != 0) {
+        patch(c.ends[L]);
       }
       if(c[R] != 0) {
         patch(c[R]);
@@ -944,63 +946,6 @@ LatexCmds.parameter = P(MathCommand, function(_, super_) {
     super_.init.call(this, '\\parameter', '<span>&0</span>');
   };
 });
-
-
-// LatexCmds.parameter = P(MathCommand, function(_, super_) {
-//   _.init = function() {
-//     var span = document.createElement('span');
-//     span.innerHTML = '\\sin\\left(&1\\right)';
-//     MQ.StaticMath(span, { mouseEvents:false });
-//     super_.init.call(this, '\\parameter', span.innerHTML.replace(/\\&amp;/g, '&') /* '<span><span>&0</span><span>&1</span></span>' */);
-//   };
-
-//   // _.write = function(cursor, ch) {
-//   //   console.log(ch);
-//   // }
-//   _.createLeftOf = function(cursor) {
-//     return super_.createLeftOf.call(this, cursor);
-//   }
-//   // _.init = function(ctrlSeq, html, text) {
-//   //   if (!text) text = ctrlSeq && ctrlSeq.length > 1 ? ctrlSeq.slice(1) : ctrlSeq;
-
-//   //   super_.init.call(this, ctrlSeq, html, [ text ]);
-//   // };
-
-//   // _.parser = function() { return Parser.succeed(this); };
-//   _.numBlocks = function() { return 2; };
-
-//   _.replaces = function(replacedFragment) {
-//     replacedFragment.remove();
-//   };
-//   // _.createBlocks = noop;
-
-//   _.moveTowards = function(dir, cursor) {
-//     super_.moveTowards.call(this, dir, cursor);
-//     // cursor.jQ.insDirOf(dir, this.jQ);
-//     // cursor[-dir] = this;
-//     // cursor[dir] = this[dir];
-//   };
-//   _.deleteTowards = function(dir, cursor) {
-//     // cursor[dir] = this.remove()[dir];
-//     super_.deleteTowards.call(this, dir, cursor);
-
-//   };
-//   _.seek = function(pageX, cursor) {
-//     super_.seek.call(this, pageX, cursor);
-//     // // insert at whichever side the click was closer to
-//     // if (pageX - this.jQ.offset().left < this.jQ.outerWidth()/2)
-//     //   cursor.insLeftOf(this);
-//     // else
-//     //   cursor.insRightOf(this);
-//   };
-
-//   // _.html = function(){
-
-//   // };
-//   // _.text = function(){ return this.textTemplate; };
-//   // _.placeCursor = noop;
-//   // _.isEmpty = function(){ return true; };
-// });
 
 // Embed arbitrary things
 // Probably the closest DOM analogue would be an iframe?
