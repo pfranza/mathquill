@@ -883,9 +883,15 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
     };
     this.parameter = [];
     patch(this.ends[L], this.parameter);
-    this.fakeends = [];
-    this.fakeends[L] = this.parameter[0].ends[L];
-    this.fakeends[R] = this.parameter[this.parameter.length - 1].ends[R];
+    if(this.parameter.length != 0) {
+      this.fakeends = [];
+      this.fakeends[L] = this.parameter[0].ends[L];
+      this.fakeends[R] = this.parameter[this.parameter.length - 1].ends[R];
+    } else {
+      this.moveTowards = function(dir, cursor, updown) {
+        cursor.insDirOf(dir, self);
+      };
+    }
     return this;
   }
 
