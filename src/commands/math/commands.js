@@ -863,17 +863,12 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
 
   _.finalizeTree = function() {
     if(typeof this.found === 'undefined') {
+      var self = this;
       var patch = function(c, found) {
         if(c.ctrlSeq === '\\parameter') {
-          // Remove mathblock in mathblock
-          if(c[L] == 0 && c[R] == 0) {
-            var p = c.parent.parent;
-            c.remove();
-            found.push(p);
-            return;
-          } else {
-            found.push(c);
-          }
+          c.owner = self;
+          c.i = found.length;
+          found.push(c);
         } else if(c.ends[L] != 0) {
           patch(c.ends[L], found);
         }
@@ -881,104 +876,11 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
           patch(c[R], found);
         }
       };
-      var found = [];
-      patch(this.ends[L], found);
-      if(found.length > 0) {
-        var createsubnode = function(cachename, obj, name, parent) {
-          obj[cachename] = obj[cachename] || [];
-          Object.defineProperty(obj, name, { 
-            get: function() {
-              if(typeof this[cachename][name] !== 'undefined' && this[cachename][name].orig === this.orig[name]) {
-                return this[cachename][name];
-              } else if(this.orig[name] === 0) {
-                return 0;
-              }
-              var obj = Object.create(Object.getPrototypeOf(this.orig[name]));
-              obj.parent = parent;
-              createsubnode("_dir", obj, L, parent);
-              createsubnode("_dir", obj, R, parent);
-              fakeNode(obj, this.orig[name]);
-              if(this === parent) {
-                this[cachename][name] = obj;
-                obj[cachename][-name] = this;
-              }
-              return obj;
-            }, set: function(v) {
-              this.orig[name] = v;
-            }
-          });
-        };
-        // Create getter / setter for wrapping objects undefined properties
-        var fakeNode = function(node, orig) {
-          node.orig = orig;
-          if(typeof orig.ends !== 'undefined') {
-            node.ends = [];
-            createsubnode("_ends", node.ends, orig.ends, L, node);
-            createsubnode("_ends", node.ends, orig.ends, R, node);
-          }
-          for(var p in orig) {
-            if(!node.hasOwnProperty(p) && typeof node[p] === 'undefined') {
-              Object.defineProperty(node, p, { get: function() {
-                  return this.orig[p];
-                }, set: function(v) {
-                  return this.orig[p] = v;
-                }
-              });
-            }
-          }
-        }
-        var createparamnode = function(obj, name) {
-          obj._LR = obj._LR || [];
-          Object.defineProperty(obj, name, { 
-            get: function() {
-              if(typeof this._LR[name] !== 'undefined' && this._LR[name].orig === this.orig[name]) {
-                return this._LR[name];
-              } else if(this.orig[name] === 0) {
-                var i = this.p + name;
-                if((i < 0 || i >= found.length )) {
-                  return 0;
-                } else {
-                  var obj = Object.create(found[i].ends[-name]);
-                  obj.p = i;
-                  obj.parent = this.parent;
-                  createparamnode(obj, L);
-                  createparamnode(obj, R);
-                  fakeNode(obj, found[i].ends[-name]);
-                  this._LR[name] = obj;
-                  obj._LR[-name] = this;
-                  return obj;
-                }
-              } else {
-                var obj = Object.create(this.orig[name]);
-                obj.p = this.p;
-                obj.parent = this.parent;
-                createparamnode(obj, L);
-                createparamnode(obj, R);
-                fakeNode(obj, this.orig[name]);
-                this._LR[name] = obj;
-                obj._LR[name] = this;
-                return obj;
-              }
-            }, set: function(v) {
-              // Temporary
-              this.orig[name] = v;
-            }
-          });
-        };
-        this.fakeends = [];
-        this.fakeends[L] = Object.create(Object.getPrototypeOf(found[0].ends[L]));
-        this.fakeends[L].p = 0;
-        this.fakeends[L].parent = this;
-        createparamnode(this.fakeends[L], L);
-        createparamnode(this.fakeends[L], R);
-        fakeNode(this.fakeends[L], found[0].ends[L])
-        this.fakeends[R] = Object.create(Object.getPrototypeOf(found[found.length - 1].ends[R]));
-        this.fakeends[R].p = found.length - 1;
-        this.fakeends[R].parent = this;
-        createparamnode(this.fakeends[R], L);
-        createparamnode(this.fakeends[R], R);
-        fakeNode(this.fakeends[R], found[found.length - 1].ends[R])
-      }
+      this.parameter = [];
+      patch(this.ends[L], this.parameter);
+      this.fakeends = [];
+      this.fakeends[L] = this.parameter[0].ends[L];
+      this.fakeends[R] = this.parameter[this.parameter.length - 1].ends[R];
     }
     return this;
   }
@@ -993,7 +895,23 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
 LatexCmds.parameter = P(MathCommand, function(_, super_) {
   _.init = function() {
     super_.init.call(this, '\\parameter', '<span>&0</span>');
+    this.owner = null;
+    this.i = 0;
   };
+
+  _.finalizeTree = function() {
+    var _ = this.ends[L];
+    var self = this;
+    _.moveOutOf = function(dir, cursor, updown) {
+      var i = self.i + dir;
+      if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i].ends[-dir]);
+      else cursor.insDirOf(dir, self.owner);
+    };
+  
+    _.selectOutOf = function(dir, cursor) {
+      cursor.insDirOf(dir, self.owner);
+    };
+  }
 });
 
 // Embed arbitrary things
