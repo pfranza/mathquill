@@ -862,33 +862,90 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
   };
 
   _.finalizeTree = function() {
-    if(typeof this.found === 'undefined') {
-      var self = this;
-      var patch = function(c, found) {
-        if(c.ctrlSeq === '\\parameter') {
-          c.owner = self;
-          c.i = found.length;
-          found.push(c);
-        } else if(c.ends[L] != 0) {
+    var self = this;
+    var patch = function(c, found) {
+      // Override seek to seek from formula
+      c.seek = function() {
+        self.seek.apply(self, arguments);
+      }
+      if(c.ctrlSeq === '\\parameter') {
+        c.owner = self;
+        c.i = found.length;
+        found.push(c);
+      } else {
+        if(c.ends[L] != 0) {
           patch(c.ends[L], found);
         }
-        if(c[R] != 0) {
-          patch(c[R], found);
-        }
-      };
-      this.parameter = [];
-      patch(this.ends[L], this.parameter);
-      this.fakeends = [];
-      this.fakeends[L] = this.parameter[0].ends[L];
-      this.fakeends[R] = this.parameter[this.parameter.length - 1].ends[R];
-    }
+      }
+      if(c[R] != 0) {
+        patch(c[R], found);
+      }
+    };
+    this.parameter = [];
+    patch(this.ends[L], this.parameter);
+    this.fakeends = [];
+    this.fakeends[L] = this.parameter[0].ends[L];
+    this.fakeends[R] = this.parameter[this.parameter.length - 1].ends[R];
     return this;
   }
 
-  // Default move to fakeends alternative Tree
+  // Default move to directly to first parameter
   _.moveTowards = function(dir, cursor, updown) {
     var updownInto = updown && this[updown+'Into'];
     cursor.insAtDirEnd(-dir, updownInto || this.fakeends[-dir]);
+  };
+
+  // modified to use parameter array
+  _.seek = function(pageX, cursor) {
+    function getBounds(node) {
+      var bounds = {}
+      bounds[L] = node.jQ.offset().left;
+      bounds[R] = bounds[L] + node.jQ.outerWidth();
+      return bounds;
+    }
+
+    var cmd = this;
+    var cmdBounds = getBounds(cmd);
+
+    if (pageX < cmdBounds[L]) return cursor.insLeftOf(cmd);
+    if (pageX > cmdBounds[R]) return cursor.insRightOf(cmd);
+
+    var leftLeftBound = cmdBounds[L];
+    for(var i = 0; i < this.parameter.length; i++) {
+      var block = this.parameter[i].ends[L];
+      var blockBounds = getBounds(block);
+      if (pageX < blockBounds[L]) {
+        // closer to this block's left bound, or the bound left of that?
+        if (pageX - leftLeftBound < blockBounds[L] - pageX) {
+          if (block[L]) cursor.insAtRightEnd(block[L]);
+          else cursor.insLeftOf(cmd);
+        }
+        else cursor.insAtLeftEnd(block);
+        break;
+      }
+      else if (pageX > blockBounds[R]) {
+        if (block[R]) leftLeftBound = blockBounds[R]; // continue to next block
+        else { // last (rightmost) block
+          // closer to this block's right bound, or the cmd's right bound?
+          if (cmdBounds[R] - pageX < pageX - blockBounds[R]) {
+            cursor.insRightOf(cmd);
+          }
+          else cursor.insAtRightEnd(block);
+        }
+      }
+      else {
+        block.seek(pageX, cursor);
+        break;
+      }
+    }
+  };
+
+  _.deleteTowards = function(dir, cursor) {
+    cursor[dir] = this.remove()[dir];
+  };
+
+  _.latex = function() {
+    return this.ends[L].latex();
   };
 });
 
@@ -911,7 +968,20 @@ LatexCmds.parameter = P(MathCommand, function(_, super_) {
     _.selectOutOf = function(dir, cursor) {
       cursor.insDirOf(dir, self.owner);
     };
+
+    _.deleteOutOf = function(dir, cursor) {
+      var i = self.i + dir;
+      if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i].ends[-dir]);
+      else {
+        cursor.insDirOf(dir, self.owner);
+        cursor[-dir] = self.owner.remove()[-dir];
+      }
+    };
   }
+
+  _.latex = function() {
+    return this.ends[L].latex();
+  };
 });
 
 // Embed arbitrary things
