@@ -768,16 +768,20 @@ LatexCmds.left = P(MathCommand, function(_) {
     var succeed = Parser.succeed;
     var optWhitespace = Parser.optWhitespace;
 
-    return optWhitespace.then(regex(/^(?:[([|]|\\\{|\\langle(?![a-zA-Z])|\\lVert(?![a-zA-Z]))/))
+    return optWhitespace.then(regex(/^(?:[([|]|\\\{|\\langle(?![a-zA-Z])|\\lfloor|\\lceil|\\lVert(?![a-zA-Z]))/))
       .then(function(ctrlSeq) {
         var open = (ctrlSeq.charAt(0) === '\\' ? ctrlSeq.slice(1) : ctrlSeq);
-	if (ctrlSeq=="\\langle") { open = '&lang;'; ctrlSeq = ctrlSeq + ' '; }
+  if (ctrlSeq=="\\langle") { open = '&lang;'; ctrlSeq = ctrlSeq + ' '; }
+  if (ctrlSeq=="\\lfloor") { open = '&#8970;'; ctrlSeq = ctrlSeq + ' '; }
+	if (ctrlSeq=="\\lceil") { open = '&#8968;'; ctrlSeq = ctrlSeq + ' '; }
 	if (ctrlSeq=="\\lVert") { open = '&#8741;'; ctrlSeq = ctrlSeq + ' '; }
         return latexMathParser.then(function (block) {
           return string('\\right').skip(optWhitespace)
-            .then(regex(/^(?:[\])|]|\\\}|\\rangle(?![a-zA-Z])|\\rVert(?![a-zA-Z]))/)).map(function(end) {
+          .then(regex(/^(?:[\])|]|\\\}|\\rangle(?![a-zA-Z])|\\rfloor|\\rceil|\\rVert(?![a-zA-Z]))/)).map(function(end) {
               var close = (end.charAt(0) === '\\' ? end.slice(1) : end);
-	      if (end=="\\rangle") { close = '&rang;'; end = end + ' '; }
+        if (end=="\\rangle") { close = '&rang;'; end = end + ' '; }
+        if (end=="\\rfloor") { close = '&#8971;'; end = end + ' '; }
+	      if (end=="\\rceil") { close = '&#8969;'; end = end + ' '; }
 	      if (end=="\\rVert") { close = '&#8741;'; end = end + ' '; }
               var cmd = Bracket(0, open, close, ctrlSeq, end);
               cmd.blocks = [ block ];
@@ -857,39 +861,18 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
     super_.init.call(this, '\\formula', '<span>&0</span>');
   };
 
-  _.latex = function() {
-    var blocks = [];
-    super_.eachChild.call(this, function(c){blocks.push(c.latex())});
-    i = 0;
-    return this.latextemplate.replace(/\\parameter\s*{[^}]*}/g, function(s) {
-      return blocks[i++];
-    });
-  };
   _.finalizeTree = function() {
-    // var args = arguments;
-    // var patch = function(c) {
-    //   if(typeof c.finalizeTree !== 'undefined') {
-    //     c.finalizeTree.apply(c, args);
-    //   }
-    //   if(c.ends[L] != 0) {
-    //     patch(c.ends[L]);
-    //   }
-    //   if(c[R] != 0) {
-    //     patch(c[R]);
-    //   }
-    // };
-    // patch(this.content.ends[L]);
     if(typeof this.found === 'undefined') {
-      this.latextemplate = this.blocks[0].latex();
       var patch = function(c, found) {
         if(c.ctrlSeq === '\\parameter') {
+          // Remove mathblock in mathblock
           if(c[L] == 0 && c[R] == 0) {
             var p = c.parent.parent;
             c.remove();
-            found.push(p.ends);
+            found.push(p);
             return;
           } else {
-            found.push(c.ends);
+            found.push(c);
           }
         } else if(c.ends[L] != 0) {
           patch(c.ends[L], found);
@@ -900,44 +883,110 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       };
       var found = [];
       patch(this.ends[L], found);
-      this.content = this.ends[L];
       if(found.length > 0) {
-        (this.ends[L] = found[0][L]).parent = this;
-        (this.ends[R] = found[found.length - 1][R]).parent = this;
-        for (var i = 1; i < found.length; i++) {
-          found[i - 1][L][R] = found[i][R];
-          found[i][R][L] = found[i - 1][L];
-        }
-      } else {
-        this.ends[L] = this.ends[R] = 0;
-        this.moveTowards = function(dir, cursor) {
-          cursor.jQ.insDirOf(dir, this.jQ);
-          cursor[-dir] = this;
-          cursor[dir] = this[dir];
+        var createsubnode = function(cachename, obj, name, parent) {
+          obj[cachename] = obj[cachename] || [];
+          Object.defineProperty(obj, name, { 
+            get: function() {
+              if(typeof this[cachename][name] !== 'undefined' && this[cachename][name].orig === this.orig[name]) {
+                return this[cachename][name];
+              } else if(this.orig[name] === 0) {
+                return 0;
+              }
+              var obj = Object.create(Object.getPrototypeOf(this.orig[name]));
+              obj.parent = parent;
+              createsubnode("_dir", obj, L, parent);
+              createsubnode("_dir", obj, R, parent);
+              fakeNode(obj, this.orig[name]);
+              if(this === parent) {
+                this[cachename][name] = obj;
+                obj[cachename][-name] = this;
+              }
+              return obj;
+            }, set: function(v) {
+              this.orig[name] = v;
+            }
+          });
         };
+        // Create getter / setter for wrapping objects undefined properties
+        var fakeNode = function(node, orig) {
+          node.orig = orig;
+          if(typeof orig.ends !== 'undefined') {
+            node.ends = [];
+            createsubnode("_ends", node.ends, orig.ends, L, node);
+            createsubnode("_ends", node.ends, orig.ends, R, node);
+          }
+          for(var p in orig) {
+            if(!node.hasOwnProperty(p) && typeof node[p] === 'undefined') {
+              Object.defineProperty(node, p, { get: function() {
+                  return this.orig[p];
+                }, set: function(v) {
+                  return this.orig[p] = v;
+                }
+              });
+            }
+          }
+        }
+        var createparamnode = function(obj, name) {
+          obj._LR = obj._LR || [];
+          Object.defineProperty(obj, name, { 
+            get: function() {
+              if(typeof this._LR[name] !== 'undefined' && this._LR[name].orig === this.orig[name]) {
+                return this._LR[name];
+              } else if(this.orig[name] === 0) {
+                var i = this.p + name;
+                if((i < 0 || i >= found.length )) {
+                  return 0;
+                } else {
+                  var obj = Object.create(found[i].ends[-name]);
+                  obj.p = i;
+                  obj.parent = this.parent;
+                  createparamnode(obj, L);
+                  createparamnode(obj, R);
+                  fakeNode(obj, found[i].ends[-name]);
+                  this._LR[name] = obj;
+                  obj._LR[-name] = this;
+                  return obj;
+                }
+              } else {
+                var obj = Object.create(this.orig[name]);
+                obj.p = this.p;
+                obj.parent = this.parent;
+                createparamnode(obj, L);
+                createparamnode(obj, R);
+                fakeNode(obj, this.orig[name]);
+                this._LR[name] = obj;
+                obj._LR[name] = this;
+                return obj;
+              }
+            }, set: function(v) {
+              // Temporary
+              this.orig[name] = v;
+            }
+          });
+        };
+        this.fakeends = [];
+        this.fakeends[L] = Object.create(Object.getPrototypeOf(found[0].ends[L]));
+        this.fakeends[L].p = 0;
+        this.fakeends[L].parent = this;
+        createparamnode(this.fakeends[L], L);
+        createparamnode(this.fakeends[L], R);
+        fakeNode(this.fakeends[L], found[0].ends[L])
+        this.fakeends[R] = Object.create(Object.getPrototypeOf(found[found.length - 1].ends[R]));
+        this.fakeends[R].p = found.length - 1;
+        this.fakeends[R].parent = this;
+        createparamnode(this.fakeends[R], L);
+        createparamnode(this.fakeends[R], R);
+        fakeNode(this.fakeends[R], found[found.length - 1].ends[R])
       }
     }
-    super_.eachChild.call(this, function(c){
-      c.deleteOutOf = function(dir, cursor) {
-        cursor.unwrapGramp();
-      };
-    });
     return this;
   }
 
-  _.reflow = function() {
-    var patch = function(c) {
-      if(typeof c.reflow !== 'undefined') {
-        c.reflow();
-      }
-      if(c.ends[L] != 0) {
-        patch(c.ends[L]);
-      }
-      if(c[R] != 0) {
-        patch(c[R]);
-      }
-    };
-    patch(this.content);
+  // Default move to fakeends alternative Tree
+  _.moveTowards = function(dir, cursor, updown) {
+    var updownInto = updown && this[updown+'Into'];
+    cursor.insAtDirEnd(-dir, updownInto || this.fakeends[-dir]);
   };
 });
 
