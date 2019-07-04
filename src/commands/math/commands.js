@@ -859,7 +859,38 @@ LatexCmds.MathQuillMathField = P(MathCommand, function(_, super_) {
 LatexCmds.formula = P(MathCommand, function(_, super_) {
   _.init = function() {
     super_.init.call(this, '\\formula', '<span>&0</span>');
+    this.parameter = [];
   };
+
+  _.adopt = function() {
+    if(this.ends[L].ends[L] === this.ends[R].ends[R]) {
+      var self = this.ends[L].ends[L];
+      self[L] = this[L];
+      self[R] = this[R];
+      if(self[L]) {
+        self[L][R] = self;
+      }
+      if(self[R]) {
+        self[R][L] = self;
+      }
+      self.parameter = this.parameter;
+      for (var i = 0; i < self.parameter.length; i++) {
+        self.parameter[i].owner = self;
+        if(self.parameter[i].parent.ends[L] === self.parameter[i] && self.parameter[i].parent.ends[R] === self.parameter[i]) {
+          var bself = self.parameter[i].parent.parent;
+          bself.owner = self.parameter[i].owner;
+          bself.i = self.parameter[i].i;
+          var old = self.parameter[bself.i];
+          self.parameter[bself.i] = bself;
+          // Removes redundant block in block
+          old.remove();
+        }
+      }
+      return self.adopt.apply(self, arguments);
+    } else {
+      return super_.adopt.apply(this, arguments);
+    }
+  }
 
   _.finalizeTree = function() {
     var self = this;
@@ -868,87 +899,97 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       c.seek = function() {
         self.seek.apply(self, arguments);
       }
-      if(c.ctrlSeq === '\\parameter') {
-        c.owner = self;
-        c.i = found.length;
-        found.push(c);
-      } else {
-        if(c.ends[L] != 0) {
-          patch(c.ends[L], found);
-        }
+      if(c.ends[L] != 0 && !self.parameter.includes(c)) {
+        patch(c.ends[L], found);
       }
       if(c[R] != 0) {
         patch(c[R], found);
       }
     };
-    this.parameter = [];
-    patch(this.ends[L], this.parameter);
-    if(this.parameter.length != 0) {
-      this.fakeends = [];
-      this.fakeends[L] = this.parameter[0].ends[L];
-      this.fakeends[R] = this.parameter[this.parameter.length - 1].ends[R];
+    patch(self.ends[L]);
+    if(self.parameter.length != 0) {
+      self.fakeends = [];
+      self.fakeends[L] = self.parameter[0].ends[L];
+      self.fakeends[R] = self.parameter[self.parameter.length - 1].ends[R];
+      // Default move to directly to first parameter
+      self.moveTowards = function(dir, cursor, updown) {
+        var updownInto = updown && this[updown+'Into'];
+        cursor.insAtDirEnd(-dir, updownInto || this.fakeends[-dir]);
+      };
+
+      // modified to use parameter array
+      self.seek = function(pageX, cursor) {
+        function getBounds(node) {
+          var bounds = {}
+          bounds[L] = node.jQ.offset().left;
+          bounds[R] = bounds[L] + node.jQ.outerWidth();
+          return bounds;
+        }
+
+        var cmd = this;
+        var cmdBounds = getBounds(cmd);
+
+        if (pageX < cmdBounds[L]) return cursor.insLeftOf(cmd);
+        if (pageX > cmdBounds[R]) return cursor.insRightOf(cmd);
+
+        var leftLeftBound = cmdBounds[L];
+        for(var i = 0; i < this.parameter.length; i++) {
+          var block = this.parameter[i].ends[L];
+          var blockBounds = getBounds(block);
+          if (pageX < blockBounds[L]) {
+            // closer to this block's left bound, or the bound left of that?
+            if (pageX - leftLeftBound < blockBounds[L] - pageX) {
+              if (block[L]) cursor.insAtRightEnd(block[L]);
+              else cursor.insLeftOf(cmd);
+            }
+            else cursor.insAtLeftEnd(block);
+            break;
+          }
+          else if (pageX > blockBounds[R]) {
+            if (block[R]) leftLeftBound = blockBounds[R]; // continue to next block
+            else { // last (rightmost) block
+              // closer to this block's right bound, or the cmd's right bound?
+              if (cmdBounds[R] - pageX < pageX - blockBounds[R]) {
+                cursor.insRightOf(cmd);
+              }
+              else cursor.insAtRightEnd(block);
+            }
+          }
+          else {
+            block.seek(pageX, cursor);
+            break;
+          }
+        }
+      };
+
+      self.deleteTowards = function(dir, cursor) {
+        cursor[dir] = this.remove()[dir];
+      };
     } else {
-      this.moveTowards = function(dir, cursor, updown) {
+      self.moveTowards = function(dir, cursor, updown) {
         cursor.insDirOf(dir, self);
       };
+      self.seek = function(pageX, cursor) {
+        // insert at whichever side the click was closer to
+        if (pageX - this.jQ.offset().left < this.jQ.outerWidth()/2)
+          cursor.insLeftOf(this);
+        else
+          cursor.insRightOf(this);
+      };
+      self.deleteTowards = function(dir, cursor) {
+        cursor[dir] = this.remove()[dir];
+      };
     }
-    return this;
   }
 
-  // Default move to directly to first parameter
-  _.moveTowards = function(dir, cursor, updown) {
-    var updownInto = updown && this[updown+'Into'];
-    cursor.insAtDirEnd(-dir, updownInto || this.fakeends[-dir]);
-  };
-
-  // modified to use parameter array
-  _.seek = function(pageX, cursor) {
-    function getBounds(node) {
-      var bounds = {}
-      bounds[L] = node.jQ.offset().left;
-      bounds[R] = bounds[L] + node.jQ.outerWidth();
-      return bounds;
-    }
-
-    var cmd = this;
-    var cmdBounds = getBounds(cmd);
-
-    if (pageX < cmdBounds[L]) return cursor.insLeftOf(cmd);
-    if (pageX > cmdBounds[R]) return cursor.insRightOf(cmd);
-
-    var leftLeftBound = cmdBounds[L];
-    for(var i = 0; i < this.parameter.length; i++) {
-      var block = this.parameter[i].ends[L];
-      var blockBounds = getBounds(block);
-      if (pageX < blockBounds[L]) {
-        // closer to this block's left bound, or the bound left of that?
-        if (pageX - leftLeftBound < blockBounds[L] - pageX) {
-          if (block[L]) cursor.insAtRightEnd(block[L]);
-          else cursor.insLeftOf(cmd);
-        }
-        else cursor.insAtLeftEnd(block);
-        break;
-      }
-      else if (pageX > blockBounds[R]) {
-        if (block[R]) leftLeftBound = blockBounds[R]; // continue to next block
-        else { // last (rightmost) block
-          // closer to this block's right bound, or the cmd's right bound?
-          if (cmdBounds[R] - pageX < pageX - blockBounds[R]) {
-            cursor.insRightOf(cmd);
-          }
-          else cursor.insAtRightEnd(block);
-        }
-      }
-      else {
-        block.seek(pageX, cursor);
-        break;
-      }
-    }
-  };
-
-  _.deleteTowards = function(dir, cursor) {
-    cursor[dir] = this.remove()[dir];
-  };
+  _.parser = function() {
+    var oldowner = LatexCmds.parameter.owner;
+    LatexCmds.parameter.owner = this;
+    return super_.parser.apply(this, arguments).map(function(obj) {
+      LatexCmds.parameter.owner = oldowner;
+      return obj;
+    });
+  }
 
   _.latex = function() {
     return this.ends[L].latex();
@@ -956,15 +997,40 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
 });
 
 LatexCmds.parameter = P(MathCommand, function(_, super_) {
+  var self = this;
   _.init = function() {
     super_.init.call(this, '\\parameter', '<span>&0</span>');
-    this.owner = null;
-    this.i = 0;
+    this.owner = self.owner;
+    this.i = this.owner.parameter.length;
+    this.owner.parameter.push(this);
   };
+
+  // _.adopt = function() {
+  //   var ret = super_.adopt.apply(this, arguments);
+  //   if(this.parent.ends[L] === this && this.parent.ends[R] === this) {
+  //     _ = this.parent;
+  //     self = this.parent.parent;
+  //     self.owner = this.owner;
+  //     self.i = this.i;
+  //     this.owner.parameter[this.i] = self;
+  //     // // Removes redundant block in block
+  //     // this.remove();
+  //   }
+  //   return ret;
+  // }
 
   _.finalizeTree = function() {
     var _ = this.ends[L];
     var self = this;
+    // if(this.parent.ends[L] === this && this.parent.ends[R] === this) {
+    //   _ = this.parent;
+    //   self = this.parent.parent;
+    //   self.owner = this.owner;
+    //   self.i = this.i;
+    //   this.owner.parameter[this.i] = self;
+    //   // Removes redundant block in block
+    //   this.remove();
+    // }
     _.moveOutOf = function(dir, cursor, updown) {
       var i = self.i + dir;
       if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i].ends[-dir]);
