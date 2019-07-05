@@ -881,12 +881,13 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       patch(self.ends[L]);
       if(self.parameter.length != 0) {
         self.fakeends = [];
-        self.fakeends[L] = self.parameter[0].ends[L];
-        self.fakeends[R] = self.parameter[self.parameter.length - 1].ends[R];
+        self.fakeends[L] = self.parameter[0];
+        self.fakeends[R] = self.parameter[self.parameter.length - 1];
         // Default move to directly to first parameter
         self.moveTowards = function(dir, cursor, updown) {
           var updownInto = updown && this[updown+'Into'];
-          cursor.insAtDirEnd(-dir, updownInto || this.fakeends[-dir]);
+          cursor.insAtDirEnd(-dir, this.fakeends[-dir])
+          //cursor.insDirOf(-dir, updownInto || this.fakeends[-dir]);
         };
   
         // modified to use parameter array
@@ -906,7 +907,7 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
   
           var leftLeftBound = cmdBounds[L];
           for(var i = 0; i < this.parameter.length; i++) {
-            var block = this.parameter[i].ends[L];
+            var block = this.parameter[i];
             var blockBounds = getBounds(block);
             if (pageX < blockBounds[L]) {
               // closer to this block's left bound, or the bound left of that?
@@ -928,7 +929,7 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
               }
             }
             else {
-              block.seek(pageX, cursor);
+              //block.seek(pageX, cursor);
               break;
             }
           }
@@ -957,15 +958,20 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
     var fixinner = function(self) {
       for (var i = 0; i < self.parameter.length; i++) {
         self.parameter[i].owner = self;
-        if(self.parameter[i].parent.ends[L] === self.parameter[i] && self.parameter[i].parent.ends[R] === self.parameter[i]) {
-          var bself = self.parameter[i].parent.parent;
-          bself.owner = self.parameter[i].owner;
-          bself.i = self.parameter[i].i;
-          var old = self.parameter[bself.i];
-          self.parameter[bself.i] = bself;
-          // Removes redundant block in block
-          old.remove();
-        }
+        // if(self.parameter[i].parent.parent.ends[L] === self.parameter[i].parent && self.parameter[i].parent.parent.ends[R] === self.parameter[i].parent) {
+        //   var bself = self.parameter[i].parent.parent;
+        //   bself.owner = self.parameter[i].owner;
+        //   bself.i = self.parameter[i].i;
+        //   var old = self.parameter[bself.i];
+        //   self.parameter[bself.i] = bself;
+        //   var _finalizeTree = self.finalizeTree;
+        //   bself.finalizeTree = function() {
+        //     _finalizeTree.apply(this, arguments);
+        //     finalizeTree.apply(this, arguments);
+        //   }
+        //   // Removes redundant block in block
+        //   //old.remove();
+        // }
       }
     }
 
@@ -987,6 +993,7 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
         finalizeTree.apply(this, arguments);
       }
       fixinner(self);
+      //this.dispose();
       return self.adopt.apply(self, arguments);
     } else {
       this.finalizeTree = finalizeTree;
@@ -1013,10 +1020,21 @@ LatexCmds.parameter = P(MathCommand, function(_, super_) {
   var self = this;
   _.init = function() {
     super_.init.call(this, '\\parameter', '<span>&0</span>');
-    this.owner = self.owner;
-    this.i = this.owner.parameter.length;
-    this.owner.parameter.push(this);
   };
+
+  _.adopt = function() {
+    var ret = super_.adopt.apply(this, arguments);
+    var block = this.ends[L];
+    block.owner = self.owner;
+    Object.defineProperty(this, "owner", {
+      get: function() {
+        return block.owner;
+      }
+    });
+    this.i = block.i = block.owner.parameter.length;
+    block.owner.parameter.push(block);
+    return ret;
+  }
 
   // _.adopt = function() {
   //   var ret = super_.adopt.apply(this, arguments);
@@ -1046,7 +1064,7 @@ LatexCmds.parameter = P(MathCommand, function(_, super_) {
     // }
     _.moveOutOf = function(dir, cursor, updown) {
       var i = self.i + dir;
-      if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i].ends[-dir]);
+      if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i]);
       else cursor.insDirOf(dir, self.owner);
     };
   
@@ -1056,7 +1074,7 @@ LatexCmds.parameter = P(MathCommand, function(_, super_) {
 
     _.deleteOutOf = function(dir, cursor) {
       var i = self.i + dir;
-      if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i].ends[-dir]);
+      if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i]);
       else {
         cursor.insDirOf(dir, self.owner);
         cursor[-dir] = self.owner.remove()[-dir];
