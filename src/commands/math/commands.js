@@ -964,7 +964,7 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
           bself.i = self.parameter[i].i;
           var old = self.parameter[bself.i].parent;
           self.parameter[bself.i] = bself;
-          old.patch.apply(bself, arguments)
+          old.patch(bself);
           // Removes redundant block in block
           old.remove();
         }
