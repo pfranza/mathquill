@@ -958,20 +958,16 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
     var fixinner = function(self) {
       for (var i = 0; i < self.parameter.length; i++) {
         self.parameter[i].owner = self;
-        // if(self.parameter[i].parent.parent.ends[L] === self.parameter[i].parent && self.parameter[i].parent.parent.ends[R] === self.parameter[i].parent) {
-        //   var bself = self.parameter[i].parent.parent;
-        //   bself.owner = self.parameter[i].owner;
-        //   bself.i = self.parameter[i].i;
-        //   var old = self.parameter[bself.i];
-        //   self.parameter[bself.i] = bself;
-        //   var _finalizeTree = self.finalizeTree;
-        //   bself.finalizeTree = function() {
-        //     _finalizeTree.apply(this, arguments);
-        //     finalizeTree.apply(this, arguments);
-        //   }
-        //   // Removes redundant block in block
-        //   //old.remove();
-        // }
+        if(self.parameter[i].parent.parent.ends[L] === self.parameter[i].parent && self.parameter[i].parent.parent.ends[R] === self.parameter[i].parent) {
+          var bself = self.parameter[i].parent.parent;
+          bself.owner = self.parameter[i].owner;
+          bself.i = self.parameter[i].i;
+          var old = self.parameter[bself.i].parent;
+          self.parameter[bself.i] = bself;
+          old.patch.apply(bself, arguments)
+          // Removes redundant block in block
+          old.remove();
+        }
       }
     }
 
@@ -1026,58 +1022,29 @@ LatexCmds.parameter = P(MathCommand, function(_, super_) {
     var ret = super_.adopt.apply(this, arguments);
     var block = this.ends[L];
     block.owner = self.owner;
-    Object.defineProperty(this, "owner", {
-      get: function() {
-        return block.owner;
-      }
-    });
-    this.i = block.i = block.owner.parameter.length;
+    block.i = block.owner.parameter.length;
     block.owner.parameter.push(block);
+    this.patch(block);
     return ret;
   }
 
-  // _.adopt = function() {
-  //   var ret = super_.adopt.apply(this, arguments);
-  //   if(this.parent.ends[L] === this && this.parent.ends[R] === this) {
-  //     _ = this.parent;
-  //     self = this.parent.parent;
-  //     self.owner = this.owner;
-  //     self.i = this.i;
-  //     this.owner.parameter[this.i] = self;
-  //     // // Removes redundant block in block
-  //     // this.remove();
-  //   }
-  //   return ret;
-  // }
-
-  _.finalizeTree = function() {
-    var _ = this.ends[L];
-    var self = this;
-    // if(this.parent.ends[L] === this && this.parent.ends[R] === this) {
-    //   _ = this.parent;
-    //   self = this.parent.parent;
-    //   self.owner = this.owner;
-    //   self.i = this.i;
-    //   this.owner.parameter[this.i] = self;
-    //   // Removes redundant block in block
-    //   this.remove();
-    // }
-    _.moveOutOf = function(dir, cursor, updown) {
-      var i = self.i + dir;
-      if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i]);
-      else cursor.insDirOf(dir, self.owner);
+  _.patch = function(block) {
+    block.moveOutOf = function(dir, cursor, updown) {
+      var i = this.i + dir;
+      if (i >= 0 && i < this.owner.parameter.length) cursor.insAtDirEnd(-dir, this.owner.parameter[i]);
+      else cursor.insDirOf(dir, this.owner);
     };
   
-    _.selectOutOf = function(dir, cursor) {
-      cursor.insDirOf(dir, self.owner);
+    block.selectOutOf = function(dir, cursor) {
+      cursor.insDirOf(dir, this.owner);
     };
 
-    _.deleteOutOf = function(dir, cursor) {
-      var i = self.i + dir;
-      if (i >= 0 && i < self.owner.parameter.length) cursor.insAtDirEnd(-dir, self.owner.parameter[i]);
+    block.deleteOutOf = function(dir, cursor) {
+      var i = this.i + dir;
+      if (i >= 0 && i < this.owner.parameter.length) cursor.insAtDirEnd(-dir, this.owner.parameter[i]);
       else {
-        cursor.insDirOf(dir, self.owner);
-        cursor[-dir] = self.owner.remove()[-dir];
+        cursor.insDirOf(dir, this.owner);
+        cursor[-dir] = this.owner.remove()[-dir];
       }
     };
   }
