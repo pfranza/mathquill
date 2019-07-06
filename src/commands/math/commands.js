@@ -864,10 +864,9 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
 
   // Optimize away redundant wrapper spans (chrome lags very hard without this)
   _.adopt = function() {
-    var finalizeTree = function() {
-      var self = this;
+    var patchinner = function(self) {
       var patch = function(c, found) {
-        // Override seek to seek from formula
+        // Force seek to seek from formula
         c.seek = function() {
           self.seek.apply(self, arguments);
         }
@@ -879,86 +878,12 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
         }
       };
       patch(self.ends[L]);
-      if(self.parameter.length != 0) {
-        self.fakeends = [];
-        self.fakeends[L] = self.parameter[0];
-        self.fakeends[R] = self.parameter[self.parameter.length - 1];
-        // Default move to directly to first parameter
-        self.moveTowards = function(dir, cursor, updown) {
-          var updownInto = updown && this[updown+'Into'];
-          cursor.insAtDirEnd(-dir, this.fakeends[-dir])
-          //cursor.insDirOf(-dir, updownInto || this.fakeends[-dir]);
-        };
-  
-        // modified to use parameter array
-        self.seek = function(pageX, cursor) {
-          function getBounds(node) {
-            var bounds = {}
-            bounds[L] = node.jQ.offset().left;
-            bounds[R] = bounds[L] + node.jQ.outerWidth();
-            return bounds;
-          }
-  
-          var cmd = this;
-          var cmdBounds = getBounds(cmd);
-  
-          if (pageX < cmdBounds[L]) return cursor.insLeftOf(cmd);
-          if (pageX > cmdBounds[R]) return cursor.insRightOf(cmd);
-  
-          var leftLeftBound = cmdBounds[L];
-          for(var i = 0; i < this.parameter.length; i++) {
-            var block = this.parameter[i];
-            var blockBounds = getBounds(block);
-            if (pageX < blockBounds[L]) {
-              // closer to this block's left bound, or the bound left of that?
-              if (pageX - leftLeftBound < blockBounds[L] - pageX) {
-                if (block[L]) cursor.insAtRightEnd(block[L]);
-                else cursor.insLeftOf(cmd);
-              }
-              else cursor.insAtLeftEnd(block);
-              break;
-            }
-            else if (pageX > blockBounds[R]) {
-              if (block[R]) leftLeftBound = blockBounds[R]; // continue to next block
-              else { // last (rightmost) block
-                // closer to this block's right bound, or the cmd's right bound?
-                if (cmdBounds[R] - pageX < pageX - blockBounds[R]) {
-                  cursor.insRightOf(cmd);
-                }
-                else cursor.insAtRightEnd(block);
-              }
-            }
-            else {
-              //block.seek(pageX, cursor);
-              break;
-            }
-          }
-        };
-  
-        self.deleteTowards = function(dir, cursor) {
-          cursor[dir] = this.remove()[dir];
-        };
-      } else {
-        self.moveTowards = function(dir, cursor, updown) {
-          cursor.insDirOf(dir, self);
-        };
-        self.seek = function(pageX, cursor) {
-          // insert at whichever side the click was closer to
-          if (pageX - this.jQ.offset().left < this.jQ.outerWidth()/2)
-            cursor.insLeftOf(this);
-          else
-            cursor.insRightOf(this);
-        };
-        self.deleteTowards = function(dir, cursor) {
-          cursor[dir] = this.remove()[dir];
-        };
-      }
     }
 
     var fixinner = function(self) {
       for (var i = 0; i < self.parameter.length; i++) {
         self.parameter[i].owner = self;
-        if(self.parameter[i].parent.parent.ends[L] === self.parameter[i].parent && self.parameter[i].parent.parent.ends[R] === self.parameter[i].parent) {
+        if(self.parameter[i].parent.ctrlSeq == "\\parameter" && self.parameter[i].parent.parent.ends[L] === self.parameter[i].parent && self.parameter[i].parent.parent.ends[R] === self.parameter[i].parent) {
           var bself = self.parameter[i].parent.parent;
           bself.owner = self.parameter[i].owner;
           bself.i = self.parameter[i].i;
@@ -970,7 +895,6 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
         }
       }
     }
-
     if(this.ends[L].ends[L] === this.ends[R].ends[R]) {
       var self = this.ends[L].ends[L];
       self[L] = this[L];
@@ -982,19 +906,93 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
         self[R][L] = self;
       }
       self.parameter = this.parameter;
-      
-      var _finalizeTree = self.finalizeTree;
-      self.finalizeTree = function() {
-        _finalizeTree.apply(this, arguments);
-        finalizeTree.apply(this, arguments);
-      }
       fixinner(self);
+      this.patch(self);
+      patchinner(self);
       //this.dispose();
       return self.adopt.apply(self, arguments);
     } else {
-      this.finalizeTree = finalizeTree;
       fixinner(this);
+      this.patch(this);
+      patchinner(this);
       return super_.adopt.apply(this, arguments);
+    }
+  }
+
+  _.patch = function(self) {
+    if(self.parameter.length != 0) {
+      self.fakeends = [];
+      self.fakeends[L] = self.parameter[0];
+      self.fakeends[R] = self.parameter[self.parameter.length - 1];
+      // Default move to directly to first parameter
+      self.moveTowards = function(dir, cursor, updown) {
+        var updownInto = updown && this[updown+'Into'];
+        cursor.insAtDirEnd(-dir, this.fakeends[-dir])
+        //cursor.insDirOf(-dir, updownInto || this.fakeends[-dir]);
+      };
+
+      // modified to use parameter array
+      self.seek = function(pageX, cursor) {
+        function getBounds(node) {
+          var bounds = {}
+          bounds[L] = node.jQ.offset().left;
+          bounds[R] = bounds[L] + node.jQ.outerWidth();
+          return bounds;
+        }
+
+        var cmd = this;
+        var cmdBounds = getBounds(cmd);
+
+        if (pageX < cmdBounds[L]) return cursor.insLeftOf(cmd);
+        if (pageX > cmdBounds[R]) return cursor.insRightOf(cmd);
+
+        var leftLeftBound = cmdBounds[L];
+        for(var i = 0; i < this.parameter.length; i++) {
+          var block = this.parameter[i];
+          var blockBounds = getBounds(block);
+          if (pageX < blockBounds[L]) {
+            // closer to this block's left bound, or the bound left of that?
+            if (pageX - leftLeftBound < blockBounds[L] - pageX) {
+              if (block[L]) cursor.insAtRightEnd(block[L]);
+              else cursor.insLeftOf(cmd);
+            }
+            else cursor.insAtLeftEnd(block);
+            break;
+          }
+          else if (pageX > blockBounds[R]) {
+            if (block[R]) leftLeftBound = blockBounds[R]; // continue to next block
+            else { // last (rightmost) block
+              // closer to this block's right bound, or the cmd's right bound?
+              if (cmdBounds[R] - pageX < pageX - blockBounds[R]) {
+                cursor.insRightOf(cmd);
+              }
+              else cursor.insAtRightEnd(block);
+            }
+          }
+          else {
+            //block.seek(pageX, cursor);
+            break;
+          }
+        }
+      };
+
+      self.deleteTowards = function(dir, cursor) {
+        cursor[dir] = this.remove()[dir];
+      };
+    } else {
+      self.moveTowards = function(dir, cursor, updown) {
+        cursor.insDirOf(dir, self);
+      };
+      self.seek = function(pageX, cursor) {
+        // insert at whichever side the click was closer to
+        if (pageX - this.jQ.offset().left < this.jQ.outerWidth()/2)
+          cursor.insLeftOf(this);
+        else
+          cursor.insRightOf(this);
+      };
+      self.deleteTowards = function(dir, cursor) {
+        cursor[dir] = this.remove()[dir];
+      };
     }
   }
 
