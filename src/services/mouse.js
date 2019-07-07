@@ -58,6 +58,59 @@ Controller.open(function(_) {
       // listen on document not just body to not only hear about mousemove and
       // mouseup on page outside field, but even outside page, except iframes: https://github.com/mathquill/mathquill/commit/8c50028afcffcace655d8ae2049f6e02482346c5#commitcomment-6175800
     });
+
+    this.container.bind('touchstart.mathquill', function(e) {
+      var rootjQ = $(e.target).closest('.mq-root-block');
+      var root = Node.byId[rootjQ.attr(mqBlockId) || ultimateRootjQ.attr(mqBlockId)];
+      var ctrlr = root.controller, cursor = ctrlr.cursor, blink = cursor.blink;
+      var textareaSpan = ctrlr.textareaSpan, textarea = ctrlr.textarea;
+
+      e.preventDefault(); // doesn't work in IE≤8, but it's a one-line fix:
+      e.target.unselectable = true; // http://jsbin.com/yagekiji/1
+
+      if (cursor.options.ignoreNextMousedown(e)) return;
+      else cursor.options.ignoreNextMousedown = noop;
+
+      var target;
+      function touchmove(e) { target = $(e.target); }
+      function doctouchmove(e) {
+        if (!cursor.anticursor) cursor.startSelection();
+        //console.log(e.originalEvent.touches);
+        ctrlr.seek(target, e.originalEvent.touches[0].pageX,  e.originalEvent.touches[0].pageY).cursor.select();
+        target = undefined;
+      }
+      // outside rootjQ, the MathQuill node corresponding to the target (if any)
+      // won't be inside this root, so don't mislead Controller::seek with it
+
+      function touchend(e) {
+        cursor.blink = blink;
+        if (!cursor.selection) {
+          if (ctrlr.editable) {
+            cursor.show();
+          }
+          else {
+            textareaSpan.detach();
+          }
+        }
+
+        // delete the mouse handlers now that we're not dragging anymore
+        //rootjQ.unbind('touchmove', touchmove);
+        $(e.target.ownerDocument).unbind('touchmove', doctouchmove).unbind('touchend touchcancel', touchend);
+      }
+
+      if (ctrlr.blurred) {
+        if (!ctrlr.editable) rootjQ.prepend(textareaSpan);
+        textarea.focus();
+      }
+
+      cursor.blink = noop;
+      ctrlr.seek($(e.target), e.originalEvent.touches[0].pageX,  e.originalEvent.touches[0].pageY).cursor.startSelection();
+
+      //rootjQ.bind('touchmove', touchmove);
+      $(e.target.ownerDocument).bind('touchmove', doctouchmove).bind('touchend touchcancel', touchend);
+      // listen on document not just body to not only hear about mousemove and
+      // mouseup on page outside field, but even outside page, except iframes: https://github.com/mathquill/mathquill/commit/8c50028afcffcace655d8ae2049f6e02482346c5#commitcomment-6175800
+    });
   }
 });
 
