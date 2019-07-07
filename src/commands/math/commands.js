@@ -866,12 +866,14 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
   _.adopt = function() {
     var patchinner = function(self) {
       var patch = function(c, found) {
-        // Force seek to seek from formula
-        c.seek = function() {
-          self.seek.apply(self, arguments);
-        }
-        if(c.ends[L] != 0 && !self.parameter.includes(c)) {
-          patch(c.ends[L], found);
+        if(!self.parameter.includes(c)) {
+          // Force seek to seek from formula
+          c.seek = function() {
+            self.seek.apply(self, arguments);
+          }
+          if(c.ends[L] != 0) {
+            patch(c.ends[L], found);
+          }
         }
         if(c[R] != 0) {
           patch(c[R], found);
@@ -953,14 +955,14 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
           if (pageX < blockBounds[L]) {
             // closer to this block's left bound, or the bound left of that?
             if (pageX - leftLeftBound < blockBounds[L] - pageX) {
-              if (block[L]) cursor.insAtRightEnd(block[L]);
+              if (i - 1 > 0) cursor.insAtRightEnd(this.parameter[i - 1]);
               else cursor.insLeftOf(cmd);
             }
             else cursor.insAtLeftEnd(block);
             break;
           }
           else if (pageX > blockBounds[R]) {
-            if (block[R]) leftLeftBound = blockBounds[R]; // continue to next block
+            if (i + 1 < this.parameter.length) leftLeftBound = blockBounds[R]; // continue to next block
             else { // last (rightmost) block
               // closer to this block's right bound, or the cmd's right bound?
               if (cmdBounds[R] - pageX < pageX - blockBounds[R]) {
@@ -970,7 +972,7 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
             }
           }
           else {
-            //block.seek(pageX, cursor);
+            block.seek(pageX, cursor);
             break;
           }
         }
