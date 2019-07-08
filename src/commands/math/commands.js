@@ -865,18 +865,18 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
   // Optimize away redundant wrapper spans (chrome lags very hard without this)
   _.adopt = function() {
     var patchinner = function(self) {
-      var patch = function(c, found) {
+      var patch = function(c) {
         if(!self.parameter.includes(c)) {
           // Force seek to seek from formula
           c.seek = function() {
             self.seek.apply(self, arguments);
           }
-          if(c.ends[L] != 0) {
-            patch(c.ends[L], found);
+          if(typeof c.ends !== "undefined" && c.ends[L] != 0) {
+            patch(c.ends[L]);
           }
         }
-        if(c[R] != 0) {
-          patch(c[R], found);
+        if(typeof c[R] != "undefined" && c[R] != 0) {
+          patch(c[R]);
         }
       };
       patch(self.ends[L]);
