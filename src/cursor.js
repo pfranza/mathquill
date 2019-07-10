@@ -23,9 +23,7 @@ var Cursor = P(Point, function(_) {
 
     var ctrlr = this.ctrlr = this.parent.controller;
 
-    //var cursorhtml = '<span style="position: absolute; z-index: 1; left: -22px; top: 0px; transform: translate(162.984px, 50.75px); width: 44px; height: 44px;"><svg width="22" height="26.509999999999998" viewBox="-11 0 22 26.509999999999998" style="margin-left: 11px;"><path d="M 0 0 L -7.776999999999999 7.776999999999999 A 11 11, 0, 1, 0, 7.776999999999999 7.776999999999999 Z" fill="blue"></path></svg></span>';
     var cursorhtml = '<span style="position: absolute; z-index: 1; left: -22px; top: 0px; width: 44px; height: 44px;"><svg width="22" height="26.509999999999998" viewBox="-11 0 22 26.509999999999998" style="margin-left: 11px;"><path d="M 0 0 L -7.776999999999999 7.776999999999999 A 11 11, 0, 1, 0, 7.776999999999999 7.776999999999999 Z" fill="blue"></path></svg></span>';
-    // var cursorhtml = '<span style="position: relative; z-index: 1; left: -22px; top: 0px; width: 44px; height: 44px;"><svg width="22" height="26.509999999999998" viewBox="-11 0 22 26.509999999999998" style="margin-left: 11px;"><path d="M 0 0 L -7.776999999999999 7.776999999999999 A 11 11, 0, 1, 0, 7.776999999999999 7.776999999999999 Z" fill="blue"></path></svg></span>';
     this.touchcursors = $('<span style="position: relative;"></span>');
     this.touchcursors.append(this.touchcursor = $(cursorhtml));
     this.touchcursor[0].style.display = "none";
@@ -34,18 +32,12 @@ var Cursor = P(Point, function(_) {
 
     var menu = $(ctrlr.editable ? '<div class="mathquill-edit-menu"><ul class="menu-options"><li class="menu-option">Copy</li><li class="menu-option">Paste</li></ul></div>' : '<div class="mathquill-edit-menu"><ul class="menu-options"><li class="menu-option">Copy</li></ul></div>');
 
-    // var sel
-    // if(ctrlr.editable) {
-      
-    // }
-
     var toggleMenu = function(command) {
       menu[0].style.display = command === "show" ? "block" : "none";
     };
 
     menu.bind("touchstart", function(e) {
       e.stopPropagation();
-      //e.preventDefault();
       toggleMenu("hide");
       ctrlr.textarea.focus();
       if (e.target.innerHTML === "Copy") {
@@ -69,10 +61,6 @@ var Cursor = P(Point, function(_) {
       e.stopPropagation();
       e.preventDefault();
     });
-
-    // menu.bind("click", function(e) {
-
-    // });
 
     var self = this;
 
@@ -125,33 +113,17 @@ var Cursor = P(Point, function(_) {
         }, 500);
         startcoord.x = x;
         startcoord.y = y;
-        // Cache the container bounds, so as to avoid re-computing.
-        self._containerBounds = ctrlr.container[0].getBoundingClientRect();
       }
     };
-    this._containerBounds = ctrlr.container[0].getBoundingClientRect();
 
     this._updateCursorHandle = function(animate) {
-      var offset = self.jQ.offset();
-      if(offset) {
-        // self.touchcursor[0].style.transform = 'translate(' + offset.left +'px, ' + (offset.top + 22) + 'px)';
-        //self.touchcursor[0].style.left = (offset.left - this._containerBounds.left - 22) + "px";
-        //self.touchcursor[0].style.top = (offset.top + 22 - this._containerBounds.top) + "px";
-        self.touchcursor[0].style.transform = 'translate(' + (offset.left - self._containerBounds.left) +'px, ' + (offset.top + 44 - this._containerBounds.top) + 'px)';
-      } else {
-        //console.log("??...");
-      }
-      //self.touchcursor.css({'transform' : 'translate(' + offset.left +'px, ' + (offset.top + 22) + 'px)'})
-    };
-
-    this._constrainToBound = function(value, min, max, friction) {
-        if (value < min) {
-            return min + (value - min) * friction;
-        } else if (value > max) {
-            return max + (value - max) * friction;
-        } else {
-            return value;
+      setTimeout(function() {
+        if(self.jQ[0]) {
+          var bounds = self.touchcursors[0].getBoundingClientRect();
+          var sbounds = self.jQ[0].getBoundingClientRect();
+          self.touchcursor[0].style.transform = 'translate(' + (sbounds.left + 1 - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
         }
+      }, 0);
     };
 
     /**
@@ -165,53 +137,41 @@ var Cursor = P(Point, function(_) {
 
         const x = e.originalEvent.touches[0].pageX;
         const y = e.originalEvent.touches[0].pageY;
-
-        //self.touchcursor[0].style.transform = 'translate(' + x +'px, ' + y + 'px)';
-        //self.touchcursor.css({'transform' : 'translate(' + x +'px, ' + y + 'px)'})
-
-        // const relativeX = x - this._containerBounds.left;
-        // const relativeY =
-        //     y - 2 * cursorHandleRadiusPx * cursorHandleDistanceMultiplier
-        //         - this._containerBounds.top;
-
-        // We subtract the containerBounds left/top to correct for the
-        // MathInput's position on the page. On top of that, we subtract an
-        // additional 2 x {height of the cursor} so that the bottom of the
-        // cursor tracks the user's finger, to make it visible under their
-        // touch.
-        // this.setState({
-        //     handle: {
-        //         animateIntoPosition: false,
-        //         visible: true,
-        //         // TODO(charlie): Use clientX and clientY to avoid the need for
-        //         // scroll offsets. This likely also means that the cursor
-        //         // detection doesn't work when scrolled, since we're not
-        //         // offsetting those values.
-        //         x: this._constrainToBound(
-        //             relativeX,
-        //             0,
-        //             this._containerBounds.width,
-        //             constrainingFrictionFactor
-        //         ),
-        //         y: this._constrainToBound(
-        //             relativeY,
-        //             0,
-        //             this._containerBounds.height,
-        //             constrainingFrictionFactor
-        //         ),
-        //     },
-        // });
-
-        // Use a y-coordinate that's just above where the user is actually
-        // touching because they're dragging the handle which is a little
-        // below where the cursor actually is.
-        // const distanceAboveFingerToTrySelecting = 22;
-        // const adjustedY = y - distanceAboveFingerToTrySelecting;
-
+        
         ctrlr.seek($(e.target), x, y);
         //if (!self.anticursor) self.startSelection();
         //ctrlr.seek(undefined, x, y).cursor.select();
     };
+
+    /**
+     * When the user moves the cursor handle update the position of the cursor
+     * and the handle.
+     *
+     * @param {TouchEvent} e - the raw touch event from the browser
+     */
+    this.onCursorSelectionHandleTouchMove = function(e) {
+      e.stopPropagation();
+
+      const x = e.originalEvent.touches[0].pageX;
+      const y = e.originalEvent.touches[0].pageY;
+
+      var sbounds = self.selection.jQ[0].getBoundingClientRect();
+
+      if((self.selection.ends[L][L] === self[L] && sbounds.left + sbounds.width / 2 < x) || (self.selection.ends[R][R] === self[R] && sbounds.left + sbounds.width / 2 > x)) {
+        var l = self._l;
+        var r = self._r;
+        var p = self.parent;
+        self._l = self.anticursor[L];
+        self._r = self.anticursor[R];
+        self.parent = self.anticursor.parent;
+        self.anticursor[L] = l;
+        self.anticursor[R] = r;
+        self.anticursor.parent = p;
+      }
+
+      if (!self.anticursor) self.startSelection();
+      ctrlr.seek(undefined, x, y).cursor.select();
+  };
 
     /**
      * When the user releases the cursor handle, animate it back into place.
@@ -261,6 +221,10 @@ var Cursor = P(Point, function(_) {
     this.touchcursor.bind("touchmove", this.onCursorHandleTouchMove);
     this.touchcursor.bind("touchend", this.onCursorHandleTouchEnd);
     this.touchcursor.bind("touchcancel", this.onCursorHandleTouchCancel);
+    this.touchanticursor.bind("touchstart", this.onCursorHandleTouchStart);
+    this.touchanticursor.bind("touchmove", this.onCursorSelectionHandleTouchMove);
+    this.touchanticursor.bind("touchend", this.onCursorHandleTouchEnd);
+    this.touchanticursor.bind("touchcancel", this.onCursorHandleTouchCancel);
   };
 
   _.show = function() {
@@ -476,14 +440,20 @@ var Cursor = P(Point, function(_) {
     this.hide().selection = lca.selectChildren(leftEnd, rightEnd);
     this.insDirOf(dir, this.selection.ends[dir]);
     this.selectionChanged();
-    //this.ctrlr.container.append(this.touchanticursor);
+    var bounds = this.touchcursors[0].getBoundingClientRect();
+    var sbounds = this.selection.jQ[0].getBoundingClientRect();
+    this.touchcursor[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+    this.touchanticursor[0].style.transform = 'translate(' + (sbounds.right - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+    this.touchcursor.off("touchmove");
+    this.touchcursor.bind("touchmove", this.onCursorSelectionHandleTouchMove);
     this.touchanticursor[0].style.display = "";
     this.touchcursor[0].style.display = "";
-    var offset = this.selection.jQ.offset();
-    //this.touchanticursor[0].style.transform = 'translate(' + offset.left +'px, ' + (offset.top + 22) + 'px)';
-    this.touchcursor[0].style.transform = 'translate(' + (offset.left - this._containerBounds.left) +'px, ' + (offset.top + 44 - this._containerBounds.top) + 'px)';
-    //this.touchcursor[0].style.transform = 'translate(' + (offset.left + this.selection.jQ.width()) +'px, ' + (offset.top + 22) + 'px)';
-    this.touchanticursor[0].style.transform = 'translate(' + (offset.left + this.selection.jQ.width() - this._containerBounds.left) +'px, ' + (offset.top + 44 - this._containerBounds.top) + 'px)';
+    var self = this;
+    this.selection.clear = function() {
+      Selection.prototype.clear.apply(this, arguments);
+      self.touchanticursor[0].style.display = "none";
+      self.touchcursor[0].style.display = "none";
+    };
     return true;
   };
 
