@@ -242,9 +242,14 @@ var Cursor = P(Point, function(_) {
         this.jQ.appendTo(this.parent.jQ);
       this.parent.focus();
     }
-    this.ctrlr.container.prepend(this.touchcursors);
-    this.ctrlr.textarea.prop('readonly', !this.ctrlr.editable);
-    this.touchcursor[0].style.display = "";
+    if(!this.ctrlr.editable) {
+      this.ctrlr.textarea.prop('readonly', true);
+      this.touchcursor[0].style.display = "none";
+    } else {
+      this.ctrlr.container.prepend(this.touchcursors);
+      this.ctrlr.textarea.prop('readonly', false);
+      this.touchcursor[0].style.display = "";
+    }
     this.intervalId = setInterval(this.blink, 500);
     return this;
   };
@@ -377,7 +382,6 @@ var Cursor = P(Point, function(_) {
   };
   _.endSelection = function() {
     delete this.anticursor;
-    this.touchanticursor[0].style.display = "none";
   };
   _.select = function() {
     var anticursor = this.anticursor;
@@ -451,6 +455,8 @@ var Cursor = P(Point, function(_) {
     var self = this;
     this.selection.clear = function() {
       Selection.prototype.clear.apply(this, arguments);
+      self.touchcursor.off("touchmove");
+      self.touchcursor.bind("touchmove", self.onCursorHandleTouchMove);
       self.touchanticursor[0].style.display = "none";
       self.touchcursor[0].style.display = "none";
     };
