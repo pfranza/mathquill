@@ -30,30 +30,59 @@ var Cursor = P(Point, function(_) {
     this.touchcursors.append(this.touchanticursor = $(cursorhtml));
     this.touchanticursor[0].style.display = "none";
 
-    var menu = $(ctrlr.editable ? '<div class="mathquill-edit-menu"><ul class="menu-options"><li class="menu-option">Copy</li><li class="menu-option">Paste</li></ul></div>' : '<div class="mathquill-edit-menu"><ul class="menu-options"><li class="menu-option">Copy</li></ul></div>');
+    var menu = $('<div class="mathquill-edit-menu"><ul class="menu-options"><li class="menu-option">Copy</li><li class="menu-option">Cut</li><li class="menu-option">Paste</li></ul></div>');
 
     var toggleMenu = function(command) {
-      menu[0].style.display = command === "show" ? "block" : "none";
+        if(command === "show") {
+        var all = menu[0].querySelectorAll('li[class="menu-option"]');
+        if(self.ctrlr.editable) {
+          if(self.selection) {
+            all.item(0).style.display = "";
+            all.item(1).style.display = "";
+            all.item(2).style.display = "";
+          } else {
+            all.item(0).style.display = "none";
+            all.item(1).style.display = "none";
+            all.item(2).style.display = "";
+          }
+        } else {
+          all.item(0).style.display = "";
+          all.item(1).style.display = "none";
+          all.item(2).style.display = "none";
+        }
+        menu[0].style.display = "block";
+      } else {
+        menu[0].style.display = "none";
+      }
     };
 
     menu.bind("touchstart", function(e) {
       e.stopPropagation();
       toggleMenu("hide");
       ctrlr.textarea.focus();
-      if (e.target.innerHTML === "Copy") {
-        if(!document.execCommand("copy")) {
-          alert("copy failed :(");
-        }
-      } else {
-        if(!document.execCommand("paste")) {
-          navigator.clipboard.readText()
-          .then(function(text) {
-            ctrlr.paste(text);
-          })
-          .catch(function(err) {
-            alert("paste failed :(");
-          });
-        }
+      switch (e.target.innerHTML) {
+        case "Copy":
+          if(!document.execCommand("copy")) {
+            alert("copy failed :(");
+          }
+          break;
+        case "Cut":
+          if(!document.execCommand("cut")) {
+            alert("cut failed :(");
+          }
+          break;
+        case "Paste":
+          if(!document.execCommand("paste")) {
+            navigator.clipboard.readText()
+            .then(function(text) {
+              ctrlr.paste(text);
+            })
+            .catch(function(err) {
+              alert("paste failed :(");
+            });
+          }
+        default:
+          break;
       }
     });
 
@@ -444,6 +473,7 @@ var Cursor = P(Point, function(_) {
     this.hide().selection = lca.selectChildren(leftEnd, rightEnd);
     this.insDirOf(dir, this.selection.ends[dir]);
     this.selectionChanged();
+    this.ctrlr.container.prepend(this.touchcursors);
     var bounds = this.touchcursors[0].getBoundingClientRect();
     var sbounds = this.selection.jQ[0].getBoundingClientRect();
     this.touchcursor[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
