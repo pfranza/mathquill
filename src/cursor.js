@@ -181,6 +181,11 @@ var Cursor = P(Point, function(_) {
     this.onCursorSelectionHandleTouchMove = function(e) {
       e.stopPropagation();
 
+      if(!self.selection.jQ[0]) {
+        e.originalEvent.target.style.display = "none";
+        return;
+      }
+
       const x = e.originalEvent.touches[0].pageX;
       const y = e.originalEvent.touches[0].pageY;
 
@@ -209,7 +214,7 @@ var Cursor = P(Point, function(_) {
      */
     this.onCursorHandleTouchEnd = function(e) {
         e.stopPropagation();
-
+        ctrlr.textarea.focus();
         //self._updateCursorHandle(true);
     };
 
@@ -220,7 +225,7 @@ var Cursor = P(Point, function(_) {
      */
     this.onCursorHandleTouchCancel = function(e) {
         e.stopPropagation();
-
+        ctrlr.textarea.focus();
         //self._updateCursorHandle(true);
     };
 
@@ -474,15 +479,24 @@ var Cursor = P(Point, function(_) {
     this.insDirOf(dir, this.selection.ends[dir]);
     this.selectionChanged();
     this.ctrlr.container.prepend(this.touchcursors);
-    var bounds = this.touchcursors[0].getBoundingClientRect();
-    var sbounds = this.selection.jQ[0].getBoundingClientRect();
-    this.touchcursor[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
-    this.touchanticursor[0].style.transform = 'translate(' + (sbounds.right - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
     this.touchcursor.off("touchmove");
     this.touchcursor.bind("touchmove", this.onCursorSelectionHandleTouchMove);
-    this.touchanticursor[0].style.display = "";
-    this.touchcursor[0].style.display = "";
     var self = this;
+    self.touchanticursor[0].style.display = "";
+    self.touchcursor[0].style.display = "";
+    setTimeout(function() {
+      if(self.selection && self.touchcursors[0]) {
+        var bounds = self.touchcursors[0].getBoundingClientRect();
+        {
+          var sbounds = self.selection.ends[R].jQ[0].getBoundingClientRect();
+          self.touchcursor[0].style.transform = 'translate(' + (sbounds.right - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+        }
+        {
+          var sbounds = self.selection.ends[L].jQ[0].getBoundingClientRect();
+          self.touchanticursor[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+        }
+      }
+    }, 0);
     this.selection.clear = function() {
       Selection.prototype.clear.apply(this, arguments);
       self.touchcursor.off("touchmove");
@@ -513,6 +527,11 @@ var Cursor = P(Point, function(_) {
   _.replaceSelection = function() {
     var seln = this.selection;
     if (seln) {
+      var self = this;
+      self.touchcursor.off("touchmove");
+      self.touchcursor.bind("touchmove", self.onCursorHandleTouchMove);
+      self.touchanticursor[0].style.display = "none";
+      self.touchcursor[0].style.display = "none";
       this[L] = seln.ends[L][L];
       this[R] = seln.ends[R][R];
       delete this.selection;

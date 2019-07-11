@@ -368,6 +368,15 @@ var VanillaSymbol = P(Symbol, function(_, super_) {
   _.init = function(ch, html) {
     super_.init.call(this, ch, '<span>'+(html || ch)+'</span>');
   };
+  _.createLeftOf = function(cursor) {
+    if(cursor[L] instanceof VanillaSymbol && (/[\u200D\uFE0F]/.test(this.ctrlSeq) || /^.*[\u200D\uD800-\uDBFF]$/.test(cursor[L].ctrlSeq))) {
+      cursor[L].ctrlSeq += this.ctrlSeq;
+      cursor[L].htmlTemplate = '<span>' + cursor[L].ctrlSeq + '</span>';
+      cursor[L].jQ.text(cursor[L].ctrlSeq);
+    } else {
+      super_.createLeftOf.apply(this, arguments);
+    }
+  }
 });
 var BinaryOperator = P(Symbol, function(_, super_) {
   _.init = function(ctrlSeq, html, text) {

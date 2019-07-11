@@ -89,7 +89,8 @@ var saneKeyboardEvents = (function() {
   // create a keyboard events shim that calls callbacks at useful times
   // and exports useful public methods
   return function saneKeyboardEvents(el, handlers) {
-    var androidaround = false;
+    var isandroid = /.*android.*/i.test(navigator.userAgent);
+    var androidcompose = false;
     var keydown = null;
     var keypress = null;
 
@@ -148,8 +149,8 @@ var saneKeyboardEvents = (function() {
     }
 
     function handleKey() {
-      if (keydown.which === 229) {
-        androidaround = true;
+      if (isandroid && keydown.which === 229) {
+        androidcompose = true;
         textarea.val('\0');
       } else {
         handlers.keystroke(stringify(keydown), keydown);
@@ -188,46 +189,48 @@ var saneKeyboardEvents = (function() {
       if (!!keydown && !keypress) checkTextareaFor(typedText);
     }
     function typedText() {
-      // If there is a selection, the contents of the textarea couldn't
-      // possibly have just been typed in.
-      // This happens in browsers like Firefox and Opera that fire
-      // keypress for keystrokes that are not text entry and leave the
-      // selection in the textarea alone, such as Ctrl-C.
-      // Note: we assume that browsers that don't support hasSelection()
-      // also never fire keypress on keystrokes that are not text entry.
-      // This seems reasonably safe because:
-      // - all modern browsers including IE 9+ support hasSelection(),
-      //   making it extremely unlikely any browser besides IE < 9 won't
-      // - as far as we know IE < 9 never fires keypress on keystrokes
-      //   that aren't text entry, which is only as reliable as our
-      //   tests are comprehensive, but the IE < 9 way to do
-      //   hasSelection() is poorly documented and is also only as
-      //   reliable as our tests are comprehensive
-      // If anything like #40 or #71 is reported in IE < 9, see
-      // b1318e5349160b665003e36d4eedd64101ceacd8
-      if (hasSelection() && !androidaround) return;
-
-      var text = textarea.val();
-      if (androidaround) {
-        androidaround = false;
+      if (androidcompose) {
+        var text = textarea.val();
+        androidcompose = false;
         textarea.val('');
         if (text.length == 0) {
-          textarea.val('');
           handlers.keystroke('Backspace', keydown);
         }
-        else if (text.length >= 2/* text.length === 2 || text.length === 3 && text.charCodeAt(1) >= 0xd800 */) {
-          var txt = text.substring(1);
-          handlers.keystroke(txt === ' ' ? 'Spacebar' : txt, keydown);
+        else if (text.length >= 2) {
+          text = text.substring(1);
+          handlers.keystroke(text === ' ' ? 'Spacebar' : text, keydown);
           if (!keydown.isDefaultPrevented()) {
-            handlers.typedText(txt);
+            for (var i = 0; i < text.length; i += 1) handlers.typedText(text.charAt(i));
           }
         }
-      } else if (text.length >= 1/* text.length === 1 || text.length === 2 && text.charCodeAt(0) >= 0xd800 */) {
-        textarea.val('');
-        handlers.typedText(text);
-      } // in Firefox, keys that don't type text, just clear seln, fire keypress
-      // https://github.com/mathquill/mathquill/issues/293#issuecomment-40997668
-      else if (text && textarea[0].select) textarea[0].select(); // re-select if that's why we're here
+      } else {
+        // If there is a selection, the contents of the textarea couldn't
+        // possibly have just been typed in.
+        // This happens in browsers like Firefox and Opera that fire
+        // keypress for keystrokes that are not text entry and leave the
+        // selection in the textarea alone, such as Ctrl-C.
+        // Note: we assume that browsers that don't support hasSelection()
+        // also never fire keypress on keystrokes that are not text entry.
+        // This seems reasonably safe because:
+        // - all modern browsers including IE 9+ support hasSelection(),
+        //   making it extremely unlikely any browser besides IE < 9 won't
+        // - as far as we know IE < 9 never fires keypress on keystrokes
+        //   that aren't text entry, which is only as reliable as our
+        //   tests are comprehensive, but the IE < 9 way to do
+        //   hasSelection() is poorly documented and is also only as
+        //   reliable as our tests are comprehensive
+        // If anything like #40 or #71 is reported in IE < 9, see
+        // b1318e5349160b665003e36d4eedd64101ceacd8
+        if (hasSelection()) return;
+
+        var text = textarea.val();
+        if (text.length >= 1) {
+          textarea.val('');
+          for (var i = 0; i < text.length; i += 1) handlers.typedText(text.charAt(i));
+        } // in Firefox, keys that don't type text, just clear seln, fire keypress
+        // https://github.com/mathquill/mathquill/issues/293#issuecomment-40997668
+        else if (text && textarea[0].select) textarea[0].select(); // re-select if that's why we're here
+      }
     }
 
     function onBlur() { keydown = keypress = null; }
