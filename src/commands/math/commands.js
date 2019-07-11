@@ -1096,14 +1096,15 @@ LatexCmds.begin = P(MathCommand, function(_, super_) {
 _.parser = function() {
   var string = Parser.string;
   var regex = Parser.regex;
-  return string('{')
+  var optWhitespace = Parser.optWhitespace;
+  return optWhitespace.then(string('{'))
     .then(regex(/^[a-z]+/i))
     .skip(string('}'))
     .then(function (env) {
         return (Environments[env] ?
           Environments[env]().parser() :
           Parser.fail('unknown environment type: '+env)
-        ).skip(string('\\end{'+env+'}'));
+        ).skip(string('\\end').then(optWhitespace).then(string('{').then(optWhitespace).then(string(env)).then(optWhitespace).then(string('}'))));
     })
   ;
 };
