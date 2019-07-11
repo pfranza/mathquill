@@ -339,7 +339,7 @@ var Cursor = P(Point, function(_) {
     }
     else {
       var pageX = self.offset().left;
-      to.seek(pageX, self);
+      to.seek(pageX, 0, self);
     }
   };
   _.offset = function() {

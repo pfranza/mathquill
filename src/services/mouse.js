@@ -133,7 +133,7 @@ Controller.open(function(_) {
     // seek from root, which is less accurate (e.g. fraction)
     cursor.clearSelection().show();
 
-    node.seek(pageX, cursor);
+    node.seek(pageX, pageY, cursor);
     this.scrollHoriz(); // before .selectFrom when mouse-selecting, so
                         // always hits no-selection case in scrollHoriz and scrolls slower
     return this;

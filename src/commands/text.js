@@ -117,7 +117,7 @@ var TextBlock = P(Node, function(_, super_) {
     }
   };
 
-  _.seek = function(pageX, cursor) {
+  _.seek = function(pageX, pageY, cursor) {
     cursor.hide();
     var textPc = fuseChildren(this);
 

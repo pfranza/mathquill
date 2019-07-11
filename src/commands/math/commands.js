@@ -934,47 +934,42 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       };
 
       // modified to use parameter array
-      self.seek = function(pageX, cursor) {
-        function getBounds(node) {
-          var bounds = {}
-          bounds[L] = node.jQ.offset().left;
-          bounds[R] = bounds[L] + node.jQ.outerWidth();
+      self.seek = function(pageX, pageY, cursor) {
+        function getDistance(block) {
+          var bounds = block.jQ[0].getBoundingClientRect();
+          var dxl = bounds.left - pageX;
+          var dxr = bounds.right - pageX;
+          var dyt = bounds.top - pageY;
+          var dyb = bounds.bottom - pageY;
+          bounds.distanceX = dxl * dxr < 0 ? 0 : Math.min(dxl * dxl, dxr * dxr);
+          bounds.distanceY =  dyt * dyb < 0 ? 0 : Math.min(dyt * dyt, dyb * dyb);
+          bounds.distance = bounds.distanceX + bounds.distanceY;
           return bounds;
         }
-
+    
         var cmd = this;
-        var cmdBounds = getBounds(cmd);
-
-        if (pageX < cmdBounds[L]) return cursor.insLeftOf(cmd);
-        if (pageX > cmdBounds[R]) return cursor.insRightOf(cmd);
-
-        var leftLeftBound = cmdBounds[L];
-        for(var i = 0; i < this.parameter.length; i++) {
-          var block = this.parameter[i];
-          var blockBounds = getBounds(block);
-          if (pageX < blockBounds[L]) {
-            // closer to this block's left bound, or the bound left of that?
-            if (pageX - leftLeftBound < blockBounds[L] - pageX) {
-              if (i - 1 > 0) cursor.insAtRightEnd(this.parameter[i - 1]);
-              else cursor.insLeftOf(cmd);
-            }
-            else cursor.insAtLeftEnd(block);
-            break;
-          }
-          else if (pageX > blockBounds[R]) {
-            if (i + 1 < this.parameter.length) leftLeftBound = blockBounds[R]; // continue to next block
-            else { // last (rightmost) block
-              // closer to this block's right bound, or the cmd's right bound?
-              if (cmdBounds[R] - pageX < pageX - blockBounds[R]) {
-                cursor.insRightOf(cmd);
-              }
-              else cursor.insAtRightEnd(block);
+        var cmdBounds = getDistance(cmd);
+    
+        if (cmdBounds.distanceX != 0) {
+          return pageX < cmdBounds.left ? cursor.insLeftOf(cmd) : cursor.insRightOf(cmd);
+        }
+    
+        var nextblock = { distance: Infinity };
+        this.parameter.forEach(function(block) {
+          var bounds = getDistance(block);
+          if(bounds.distance < nextblock.distance) {
+            bounds.node = block;
+            nextblock = bounds;
+            if(bounds.distance === 0) {
+              return false;
             }
           }
-          else {
-            block.seek(pageX, cursor);
-            break;
+        });
+        if(nextblock.distance !== Infinity) {
+          if(nextblock.distanceX === 0) {
+            return nextblock.node.seek(pageX, pageY, cursor);
           }
+          return pageX < nextblock.left ? cursor.insAtLeftEnd(nextblock.node) : cursor.insAtRightEnd(nextblock.node);
         }
       };
 

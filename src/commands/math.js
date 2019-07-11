@@ -160,48 +160,44 @@ var MathCommand = P(MathElement, function(_, super_) {
   _.unselectInto = function(dir, cursor) {
     cursor.insAtDirEnd(-dir, cursor.anticursor.ancestors[this.id]);
   };
-  _.seek = function(pageX, cursor) {
-    function getBounds(node) {
-      var bounds = {}
-      bounds[L] = node.jQ.offset().left;
-      bounds[R] = bounds[L] + node.jQ.outerWidth();
+  _.seek = function(pageX, pageY, cursor) {
+    function getDistance(block) {
+      var bounds = block.jQ[0].getBoundingClientRect();
+      var dxl = bounds.left - pageX;
+      var dxr = bounds.right - pageX;
+      var dyt = bounds.top - pageY;
+      var dyb = bounds.bottom - pageY;
+      bounds.distanceX = dxl * dxr < 0 ? 0 : Math.min(dxl * dxl, dxr * dxr);
+      bounds.distanceY =  dyt * dyb < 0 ? 0 : Math.min(dyt * dyt, dyb * dyb);
+      bounds.distance = bounds.distanceX + bounds.distanceY;
       return bounds;
     }
 
     var cmd = this;
-    var cmdBounds = getBounds(cmd);
+    var cmdBounds = getDistance(cmd);
 
-    if (pageX < cmdBounds[L]) return cursor.insLeftOf(cmd);
-    if (pageX > cmdBounds[R]) return cursor.insRightOf(cmd);
+    if (cmdBounds.distanceX != 0) {
+      return pageX < cmdBounds.left ? cursor.insLeftOf(cmd) : cursor.insRightOf(cmd);
+    }
 
-    var leftLeftBound = cmdBounds[L];
+    var nextblock = { distance: Infinity };
     cmd.eachChild(function(block) {
-      var blockBounds = getBounds(block);
-      if (pageX < blockBounds[L]) {
-        // closer to this block's left bound, or the bound left of that?
-        if (pageX - leftLeftBound < blockBounds[L] - pageX) {
-          if (block[L]) cursor.insAtRightEnd(block[L]);
-          else cursor.insLeftOf(cmd);
+      var bounds = getDistance(block);
+      if(bounds.distance < nextblock.distance) {
+        bounds.node = block;
+        nextblock = bounds;
+        if(bounds.distance === 0) {
+          return false;
         }
-        else cursor.insAtLeftEnd(block);
-        return false;
-      }
-      else if (pageX > blockBounds[R]) {
-        if (block[R]) leftLeftBound = blockBounds[R]; // continue to next block
-        else { // last (rightmost) block
-          // closer to this block's right bound, or the cmd's right bound?
-          if (cmdBounds[R] - pageX < pageX - blockBounds[R]) {
-            cursor.insRightOf(cmd);
-          }
-          else cursor.insAtRightEnd(block);
-        }
-      }
-      else {
-        block.seek(pageX, cursor);
-        return false;
       }
     });
-  }
+    if(nextblock.distance !== Infinity) {
+      if(nextblock.distanceX === 0) {
+        return nextblock.node.seek(pageX, pageY, cursor);
+      }
+      return pageX < nextblock.left ? cursor.insAtLeftEnd(nextblock.node) : cursor.insAtRightEnd(nextblock.node);
+    }
+  };
 
   // methods involved in creating and cross-linking with HTML DOM nodes
   /*
@@ -355,7 +351,7 @@ var Symbol = P(MathCommand, function(_, super_) {
   _.deleteTowards = function(dir, cursor) {
     cursor[dir] = this.remove()[dir];
   };
-  _.seek = function(pageX, cursor) {
+  _.seek = function(pageX, pageY, cursor) {
     // insert at whichever side the click was closer to
     if (pageX - this.jQ.offset().left < this.jQ.outerWidth()/2)
       cursor.insLeftOf(this);
@@ -425,14 +421,14 @@ var MathBlock = P(MathElement, function(_, super_) {
   _.deleteOutOf = function(dir, cursor) {
     cursor.unwrapGramp();
   };
-  _.seek = function(pageX, cursor) {
+  _.seek = function(pageX, pageY, cursor) {
     var node = this.ends[R];
     if (!node || node.jQ.offset().left + node.jQ.outerWidth() < pageX) {
       return cursor.insAtRightEnd(this);
     }
     if (pageX < this.ends[L].jQ.offset().left) return cursor.insAtLeftEnd(this);
     while (pageX < node.jQ.offset().left) node = node[L];
-    return node.seek(pageX, cursor);
+    return node.seek(pageX, pageY, cursor);
   };
   _.chToCmd = function(ch, options) {
     var cons;
