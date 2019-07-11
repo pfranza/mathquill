@@ -205,7 +205,7 @@ var saneKeyboardEvents = (function() {
       //   reliable as our tests are comprehensive
       // If anything like #40 or #71 is reported in IE < 9, see
       // b1318e5349160b665003e36d4eedd64101ceacd8
-      if (hasSelection()) return;
+      if (hasSelection() && !androidaround) return;
 
       var text = textarea.val();
       if (androidaround) {
