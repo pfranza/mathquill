@@ -63,18 +63,14 @@ Controller.open(function(_) {
     var start;
     var last;
 
-    var touchselect = function(cursor) {
+    var touchselect = function(ctrlr, cursor) {
       holdtimeout = undefined;
       var x = last.x;
       var y = last.y;
       if (Math.abs(start.x - x) <= 20 && Math.abs(start.y - y) <= 20) {
-        if(cursor[R] != 0) {
-          cursor.insDirOf(R, cursor[R]).select();
-          cursor.showTouchCursors();
-        } else if(cursor[L] != 0) {
-          cursor.insDirOf(L, cursor[L]).select();
-          cursor.showTouchCursors();
-        }
+        var bounds = cursor.jQ[0].getBoundingClientRect();
+        ctrlr.selectDir((bounds.left - x) > (x - bounds.right) ? L : R);
+        cursor.showTouchCursors();
       }
     }
 
@@ -92,7 +88,7 @@ Controller.open(function(_) {
       ctrlr.seek($(e.target), start.x, start.y).cursor.startSelection();
       cursor.showTouchCursors();
       holdtimeout = setTimeout(function() {
-        touchselect(cursor);
+        touchselect(ctrlr, cursor);
       }, 500);
     });
 

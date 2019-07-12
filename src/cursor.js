@@ -53,13 +53,17 @@ var Cursor = P(Point, function(_) {
           break;
         case "Paste":
           if(!document.execCommand("paste")) {
+            var fail = function(err) {
+              alert("paste failed :(");
+            };
+            if(!navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
+              return fail();
+            }
             navigator.clipboard.readText()
             .then(function(text) {
               ctrlr.paste(text);
             })
-            .catch(function(err) {
-              alert("paste failed :(");
-            });
+            .catch(fail);
           }
         default:
           break;
@@ -115,6 +119,7 @@ var Cursor = P(Point, function(_) {
     if(!this.touchcursor.dragging && !this.touchanticursor.dragging) {
       this.touchcursor[0].style.display = "none";
     }
+    this.toggleMenu("hide");
     this.intervalId = setInterval(this.blink, 500);
     return this;
   };
@@ -122,6 +127,7 @@ var Cursor = P(Point, function(_) {
     if(!this.touchcursor.dragging && !this.touchanticursor.dragging) {
       this.touchcursor[0].style.display = "none";
     }
+    this.toggleMenu("hide");
     if ('intervalId' in this)
       clearInterval(this.intervalId);
     delete this.intervalId;
@@ -320,27 +326,28 @@ var Cursor = P(Point, function(_) {
           var bounds = self.touchcursors[0].getBoundingClientRect();
           var setright = function(touchcursor) {
             var sbounds = self.selection.ends[R].jQ[0].getBoundingClientRect();
-            touchcursor.last = { x: sbounds.right - bounds.left, y: sbounds.bottom - bounds.top };
+            touchcursor.last = { x: sbounds.right - bounds.left, y: sbounds.bottom - bounds.top};
             touchcursor[0].style.transform = 'translate(' + touchcursor.last.x +'px, ' + touchcursor.last.y + 'px)';
           }
           var setleft = function(touchcursor) {
             var sbounds = self.selection.ends[L].jQ[0].getBoundingClientRect();
-            touchcursor.last = { x: sbounds.left - bounds.left, y: sbounds.bottom - bounds.top };
+            touchcursor.last = { x: sbounds.left - bounds.left, y: sbounds.bottom - bounds.top};
             touchcursor[0].style.transform = 'translate(' + touchcursor.last.x +'px, ' + touchcursor.last.y + 'px)';
           }
           if(self.touchcursor.dragging) {
-            if(self.touchcursor.last.x < self.touchanticursor.last.x) {
+            if(self.selection.ends[L][L] === self.touchanticursor[L] ^ self.touchcursor.last.x < self.touchanticursor.last.x) {
               setright(self.touchanticursor);
             } else {
               setleft(self.touchanticursor);
             }
           } else if(self.touchanticursor.dragging) {
-            if(self.touchanticursor.last.x < self.touchcursor.last.x) {
+            if(self.selection.ends[L][L] === self.touchcursor[L] ^ self.touchanticursor.last.x < self.touchcursor.last.x) {
               setright(self.touchcursor);
             } else {
               setleft(self.touchcursor);
             }
           }
+          self.toggleMenu("hide");
         }
       }, 0);
       this.selection.clear = function() {
@@ -348,6 +355,7 @@ var Cursor = P(Point, function(_) {
         if(!self.touchcursor.dragging && !self.touchanticursor.dragging) {
           self.touchcursor[0].style.display = "none";
           self.touchanticursor[0].style.display = "none";
+          self.toggleMenu("hide");
         }
       };
     }
@@ -376,8 +384,6 @@ var Cursor = P(Point, function(_) {
     var seln = this.selection;
     if (seln) {
       var self = this;
-      self.touchcursor.off("touchmove");
-      self.touchcursor.bind("touchmove", self.onCursorHandleTouchMove);
       self.touchanticursor[0].style.display = "none";
       self.touchcursor[0].style.display = "none";
       this[L] = seln.ends[L][L];
@@ -423,19 +429,30 @@ var Cursor = P(Point, function(_) {
           var l = self[L];
           var r = self[R];
           var p = self.parent;
+          var a = self.ancestors;
           self[L] = self.anticursor[L];
           self[R] = self.anticursor[R];
           self.parent = self.anticursor.parent;
+          self.ancestors = self.anticursor.ancestors;
           self.anticursor[L] = l;
           self.anticursor[R] = r;
           self.anticursor.parent = p;
+          self.anticursor.ancestors = a;
+          if(!self.anticursor.ancestor) {
+            var ancestors = self.anticursor.ancestors = {}; // a map from each ancestor of
+            // the anticursor, to its child that is also an ancestor; in other words,
+            // the anticursor's ancestor chain in reverse order
+            for (var ancestor = self.anticursor; ancestor.parent; ancestor = ancestor.parent) {
+              ancestors[ancestor.parent.id] = ancestor;
+            }
+        }
         }
 
         if (!self.anticursor) self.startSelection();
         self.ctrlr.seek(undefined, x, y).cursor.select();
       }
       var bounds = self.touchcursors[0].getBoundingClientRect();
-      this[0].style.transform = 'translate(' + (x - bounds.left) +'px, ' + (y - bounds.top) + 'px)';
+      this[0].style.transform = 'translate(' + (x - bounds.left - window.scrollX) +'px, ' + (y - bounds.top - window.scrollY) + 'px)';
   };
 
   _.onCursorHandleTouchEnd = function(e) {
@@ -446,8 +463,8 @@ var Cursor = P(Point, function(_) {
       var y = this.last.y;
       if (Math.abs(this.start.x - x) <= 20 && Math.abs(this.start.y - y) <= 20) {
         var bounds = self.cursor.touchcursors[0].getBoundingClientRect();
-        this.cursor.menu[0].style.left = (x - bounds.left) + "px";
-        this.cursor.menu[0].style.top = (y - 44 - bounds.top) + "px";
+        this.cursor.menu[0].style.left = (x - window.scrollX - bounds.left) + "px";
+        this.cursor.menu[0].style.top = (y - window.scrollY - 44 - bounds.top) + "px";
         this.cursor.toggleMenu("show");
       }
       if(this.cursor.selection) {
@@ -503,6 +520,7 @@ var Cursor = P(Point, function(_) {
   _.showTouchCursors = function() {
     this.ctrlr.container.prepend(this.touchcursors);
     var self = this;
+    self.toggleMenu("hide");
     if(this.selection) {
       self.touchcursor[0].style.display = "";
       self.touchanticursor[0].style.display = "";
@@ -524,6 +542,7 @@ var Cursor = P(Point, function(_) {
         if(!self.touchcursor.dragging && !self.touchanticursor.dragging) {
           self.touchanticursor[0].style.display = "none";
           self.touchcursor[0].style.display = "none";
+          self.toggleMenu("hide");
         }
       };
     } else if(self.ctrlr.editable){
