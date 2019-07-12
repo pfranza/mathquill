@@ -30,36 +30,16 @@ var Cursor = P(Point, function(_) {
     this.touchcursors.append(this.touchanticursor = $(cursorhtml));
     this.touchanticursor[0].style.display = "none";
 
-    var menu = $('<div class="mathquill-edit-menu"><ul class="menu-options"><li class="menu-option">Copy</li><li class="menu-option">Cut</li><li class="menu-option">Paste</li></ul></div>');
+    var menu = this.menu = $('<div class="mathquill-edit-menu"><ul class="menu-options"><li class="menu-option">Copy</li><li class="menu-option">Cut</li><li class="menu-option">Paste</li></ul></div>');
 
-    var toggleMenu = function(command) {
-        if(command === "show") {
-        var all = menu[0].querySelectorAll('li[class="menu-option"]');
-        if(self.ctrlr.editable) {
-          if(self.selection) {
-            all.item(0).style.display = "";
-            all.item(1).style.display = "";
-            all.item(2).style.display = "";
-          } else {
-            all.item(0).style.display = "none";
-            all.item(1).style.display = "none";
-            all.item(2).style.display = "";
-          }
-        } else {
-          all.item(0).style.display = "";
-          all.item(1).style.display = "none";
-          all.item(2).style.display = "none";
-        }
-        menu[0].style.display = "block";
-      } else {
-        menu[0].style.display = "none";
-      }
-    };
+    this.touchcursors.append(menu);
+
+    var self = this;
 
     menu.bind("touchstart", function(e) {
       e.stopPropagation();
-      toggleMenu("hide");
-      ctrlr.textarea.focus();
+      self.toggleMenu("hide");
+      self.ctrlr.textarea.focus();
       switch (e.target.innerHTML) {
         case "Copy":
           if(!document.execCommand("copy")) {
@@ -93,172 +73,28 @@ var Cursor = P(Point, function(_) {
 
     var self = this;
 
-    var startcoord = { x: 0, y: 0};
-    var taptimer = null;
-    /**
-     * When a touch starts in the cursor handle, we track it so as to avoid
-     * handling any touch events ourself.
-     *
-     * @param {TouchEvent} e - the raw touch event from the browser
-     */
-    this.onCursorHandleTouchStart = function(e) {
-      // NOTE(charlie): The cursor handle is a child of this view, so whenever
-      // it receives a touch event, that event would also typically be bubbled
-      // up to our own handlers. However, we want the cursor to handle its own
-      // touch events, and for this view to only handle touch events that
-      // don't affect the cursor. As such, we `stopPropagation` on any touch
-      // events that are being handled by the cursor, so as to avoid handling
-      // them in our own touch handlers.
-      e.stopPropagation();
+    this.touchcursor.cursor = this;
+    this.touchanticursor.cursor = this;
 
-      e.preventDefault();
-
-      var x = e.originalEvent.touches[0].pageX;
-      var y = e.originalEvent.touches[0].pageY;
-      if (taptimer != null && Math.abs(startcoord.x - x) <= 5 && Math.abs(startcoord.y - y) <= 5) {
-        clearTimeout(taptimer);
-        taptimer = null;
-        ctrlr.container.append(menu);
-        
-        var setPosition = function(origin) {
-          menu[0].style.left = origin.left + "px";
-          menu[0].style.top = origin.top + "px";
-          toggleMenu('show');
-        };
-
-        var origin = {
-          left: x,
-          top: y - 11
-        };
-        setPosition(origin);
-        
-        // ctrlr.textarea.focus();
-        // if(!document.execCommand("copy")) {
-        //   alert("copy failed :(");
-        // }
-      } else {
-        taptimer = setTimeout(function () {
-          taptimer = null;
-        }, 500);
-        startcoord.x = x;
-        startcoord.y = y;
-      }
-    };
-
-    this._updateCursorHandle = function(animate) {
-      setTimeout(function() {
-        if(self.jQ[0]) {
-          var bounds = self.touchcursors[0].getBoundingClientRect();
-          var sbounds = self.jQ[0].getBoundingClientRect();
-          self.touchcursor[0].style.transform = 'translate(' + (sbounds.left + 1 - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
-        }
-      }, 0);
-    };
-
-    /**
-     * When the user moves the cursor handle update the position of the cursor
-     * and the handle.
-     *
-     * @param {TouchEvent} e - the raw touch event from the browser
-     */
-    this.onCursorHandleTouchMove = function(e) {
-        e.stopPropagation();
-
-        const x = e.originalEvent.touches[0].pageX;
-        const y = e.originalEvent.touches[0].pageY;
-        
-        ctrlr.seek($(e.target), x, y);
-        //if (!self.anticursor) self.startSelection();
-        //ctrlr.seek(undefined, x, y).cursor.select();
-    };
-
-    /**
-     * When the user moves the cursor handle update the position of the cursor
-     * and the handle.
-     *
-     * @param {TouchEvent} e - the raw touch event from the browser
-     */
-    this.onCursorSelectionHandleTouchMove = function(e) {
-      e.stopPropagation();
-
-      if(!self.selection.jQ[0]) {
-        e.originalEvent.target.style.display = "none";
-        return;
-      }
-
-      const x = e.originalEvent.touches[0].pageX;
-      const y = e.originalEvent.touches[0].pageY;
-
-      var sbounds = self.selection.jQ[0].getBoundingClientRect();
-
-      if((self.selection.ends[L][L] === self[L] && sbounds.left + sbounds.width / 2 < x) || (self.selection.ends[R][R] === self[R] && sbounds.left + sbounds.width / 2 > x)) {
-        var l = self._l;
-        var r = self._r;
-        var p = self.parent;
-        self._l = self.anticursor[L];
-        self._r = self.anticursor[R];
-        self.parent = self.anticursor.parent;
-        self.anticursor[L] = l;
-        self.anticursor[R] = r;
-        self.anticursor.parent = p;
-      }
-
-      if (!self.anticursor) self.startSelection();
-      ctrlr.seek(undefined, x, y).cursor.select();
-  };
-
-    /**
-     * When the user releases the cursor handle, animate it back into place.
-     *
-     * @param {TouchEvent} e - the raw touch event from the browser
-     */
-    this.onCursorHandleTouchEnd = function(e) {
-        e.stopPropagation();
-        ctrlr.textarea.focus();
-        //self._updateCursorHandle(true);
-    };
-
-    /**
-     * If the gesture is cancelled mid-drag, simply hide it.
-     *
-     * @param {TouchEvent} e - the raw touch event from the browser
-     */
-    this.onCursorHandleTouchCancel = function(e) {
-        e.stopPropagation();
-        ctrlr.textarea.focus();
-        //self._updateCursorHandle(true);
-    };
-
-    this._l = this[L];
-    this._r = this[R];
-    Object.defineProperty(this, L, {
-      get: function() {
-        return this._l;
-      },
-      set: function(v) {
-        this._l = v;
-        this._updateCursorHandle();
-      }
+    this.touchcursor.bind("touchstart", function() {
+      self.onCursorHandleTouchStart.apply(self.touchcursor, arguments);
+    });
+    this.touchcursor.bind("touchmove", function() {
+      self.onCursorHandleTouchMove.apply(self.touchcursor, arguments);
+    });
+    this.touchcursor.bind("touchcancel touchend", function() {
+      self.onCursorHandleTouchEnd.apply(self.touchcursor, arguments);
     });
 
-    Object.defineProperty(this, R, {
-      get: function() {
-        return this._r;
-      },
-      set: function(v) {
-        this._r = v;
-        this._updateCursorHandle();
-      }
+    this.touchanticursor.bind("touchstart", function() {
+      self.onCursorHandleTouchStart.apply(self.touchanticursor, arguments);
     });
-
-    this.touchcursor.bind("touchstart", this.onCursorHandleTouchStart);
-    this.touchcursor.bind("touchmove", this.onCursorHandleTouchMove);
-    this.touchcursor.bind("touchend", this.onCursorHandleTouchEnd);
-    this.touchcursor.bind("touchcancel", this.onCursorHandleTouchCancel);
-    this.touchanticursor.bind("touchstart", this.onCursorHandleTouchStart);
-    this.touchanticursor.bind("touchmove", this.onCursorSelectionHandleTouchMove);
-    this.touchanticursor.bind("touchend", this.onCursorHandleTouchEnd);
-    this.touchanticursor.bind("touchcancel", this.onCursorHandleTouchCancel);
+    this.touchanticursor.bind("touchmove", function() {
+      self.onCursorHandleTouchMove.apply(self.touchanticursor, arguments);
+    });
+    this.touchanticursor.bind("touchcancel touchend", function() {
+      self.onCursorHandleTouchEnd.apply(self.touchanticursor, arguments);
+    });
   };
 
   _.show = function() {
@@ -276,19 +112,16 @@ var Cursor = P(Point, function(_) {
         this.jQ.appendTo(this.parent.jQ);
       this.parent.focus();
     }
-    if(!this.ctrlr.editable) {
-      this.ctrlr.textarea.prop('readonly', true);
+    if(!this.touchcursor.dragging && !this.touchanticursor.dragging) {
       this.touchcursor[0].style.display = "none";
-    } else {
-      this.ctrlr.container.prepend(this.touchcursors);
-      this.ctrlr.textarea.prop('readonly', false);
-      this.touchcursor[0].style.display = "";
     }
     this.intervalId = setInterval(this.blink, 500);
     return this;
   };
   _.hide = function() {
-    this.touchcursor[0].style.display = "none";
+    if(!this.touchcursor.dragging && !this.touchanticursor.dragging) {
+      this.touchcursor[0].style.display = "none";
+    }
     if ('intervalId' in this)
       clearInterval(this.intervalId);
     delete this.intervalId;
@@ -479,31 +312,45 @@ var Cursor = P(Point, function(_) {
     this.insDirOf(dir, this.selection.ends[dir]);
     this.selectionChanged();
     this.ctrlr.container.prepend(this.touchcursors);
-    this.touchcursor.off("touchmove");
-    this.touchcursor.bind("touchmove", this.onCursorSelectionHandleTouchMove);
     var self = this;
-    self.touchanticursor[0].style.display = "";
-    self.touchcursor[0].style.display = "";
-    setTimeout(function() {
-      if(self.selection && self.touchcursors[0]) {
-        var bounds = self.touchcursors[0].getBoundingClientRect();
-        {
-          var sbounds = self.selection.ends[R].jQ[0].getBoundingClientRect();
-          self.touchcursor[0].style.transform = 'translate(' + (sbounds.right - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+    if(self.touchcursor[0].style.display == "") {
+      self.touchanticursor[0].style.display = "";
+      setTimeout(function() {
+        if(self.selection && self.touchcursors[0]) {
+          var bounds = self.touchcursors[0].getBoundingClientRect();
+          var setright = function(touchcursor) {
+            var sbounds = self.selection.ends[R].jQ[0].getBoundingClientRect();
+            touchcursor.last = { x: sbounds.right - bounds.left, y: sbounds.bottom - bounds.top };
+            touchcursor[0].style.transform = 'translate(' + touchcursor.last.x +'px, ' + touchcursor.last.y + 'px)';
+          }
+          var setleft = function(touchcursor) {
+            var sbounds = self.selection.ends[L].jQ[0].getBoundingClientRect();
+            touchcursor.last = { x: sbounds.left - bounds.left, y: sbounds.bottom - bounds.top };
+            touchcursor[0].style.transform = 'translate(' + touchcursor.last.x +'px, ' + touchcursor.last.y + 'px)';
+          }
+          if(self.touchcursor.dragging) {
+            if(self.touchcursor.last.x < self.touchanticursor.last.x) {
+              setright(self.touchanticursor);
+            } else {
+              setleft(self.touchanticursor);
+            }
+          } else if(self.touchanticursor.dragging) {
+            if(self.touchanticursor.last.x < self.touchcursor.last.x) {
+              setright(self.touchcursor);
+            } else {
+              setleft(self.touchcursor);
+            }
+          }
         }
-        {
-          var sbounds = self.selection.ends[L].jQ[0].getBoundingClientRect();
-          self.touchanticursor[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+      }, 0);
+      this.selection.clear = function() {
+        Selection.prototype.clear.apply(this, arguments);
+        if(!self.touchcursor.dragging && !self.touchanticursor.dragging) {
+          self.touchcursor[0].style.display = "none";
+          self.touchanticursor[0].style.display = "none";
         }
-      }
-    }, 0);
-    this.selection.clear = function() {
-      Selection.prototype.clear.apply(this, arguments);
-      self.touchcursor.off("touchmove");
-      self.touchcursor.bind("touchmove", self.onCursorHandleTouchMove);
-      self.touchanticursor[0].style.display = "none";
-      self.touchcursor[0].style.display = "none";
-    };
+      };
+    }
     return true;
   };
 
@@ -517,7 +364,8 @@ var Cursor = P(Point, function(_) {
   };
   _.deleteSelection = function() {
     if (!this.selection) return;
-
+    this.touchcursor[0].style.display = "none";
+    this.touchanticursor[0].style.display = "none";
     this[L] = this.selection.ends[L][L];
     this[R] = this.selection.ends[R][R];
     this.selection.remove();
@@ -551,6 +399,144 @@ var Cursor = P(Point, function(_) {
       return this.depth() + (offset || 0) > this.options.maxDepth;
     }
   };
+
+  _.onCursorHandleTouchStart = function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    this.dragging = true;
+    this.last = this.start = { x: e.originalEvent.touches[0].pageX, y: e.originalEvent.touches[0].pageY };
+  };
+
+  _.onCursorHandleTouchMove = function(e) {
+      e.stopPropagation();
+
+      this.last = { x: e.originalEvent.touches[0].pageX, y: e.originalEvent.touches[0].pageY };
+      var x = this.last.x;
+      var y = this.last.y - 22;
+      var self = this.cursor;
+      if(!self.selection) {
+        self.ctrlr.seek(undefined, x, y);
+      } else {
+        var sbounds = self.selection.jQ[0].getBoundingClientRect();
+
+        if((self.selection.ends[L][L] === self[L] && sbounds.left + sbounds.width / 2 < x) || (self.selection.ends[R][R] === self[R] && sbounds.left + sbounds.width / 2 > x)) {
+          var l = self[L];
+          var r = self[R];
+          var p = self.parent;
+          self[L] = self.anticursor[L];
+          self[R] = self.anticursor[R];
+          self.parent = self.anticursor.parent;
+          self.anticursor[L] = l;
+          self.anticursor[R] = r;
+          self.anticursor.parent = p;
+        }
+
+        if (!self.anticursor) self.startSelection();
+        self.ctrlr.seek(undefined, x, y).cursor.select();
+      }
+      var bounds = self.touchcursors[0].getBoundingClientRect();
+      this[0].style.transform = 'translate(' + (x - bounds.left) +'px, ' + (y - bounds.top) + 'px)';
+  };
+
+  _.onCursorHandleTouchEnd = function(e) {
+      e.stopPropagation();
+      this.dragging = false;
+      var self = this;
+      var x = this.last.x;
+      var y = this.last.y;
+      if (Math.abs(this.start.x - x) <= 20 && Math.abs(this.start.y - y) <= 20) {
+        var bounds = self.cursor.touchcursors[0].getBoundingClientRect();
+        this.cursor.menu[0].style.left = (x - bounds.left) + "px";
+        this.cursor.menu[0].style.top = (y - 44 - bounds.top) + "px";
+        this.cursor.toggleMenu("show");
+      }
+      if(this.cursor.selection) {
+        var self = this.cursor;
+        setTimeout(function() {
+          if(self.selection && self.touchcursors[0]) {
+            var bounds = self.touchcursors[0].getBoundingClientRect();
+            if(!self.touchcursor.dragging) {
+              var sbounds = self.selection.ends[R].jQ[0].getBoundingClientRect();
+              self.touchcursor[0].style.transform = 'translate(' + (sbounds.right - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+            }
+            if(!self.touchanticursor.dragging) {
+              var sbounds = self.selection.ends[L].jQ[0].getBoundingClientRect();
+              self.touchanticursor[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+            }
+          }
+        }, 0);
+      } else {
+        setTimeout(function() {
+          if(self.cursor.jQ[0]) {
+            var bounds = self.cursor.touchcursors[0].getBoundingClientRect();
+            var sbounds = self.cursor.jQ[0].getBoundingClientRect();
+            self[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+          }
+        }, 0);
+      }
+  };
+
+  _.toggleMenu = function(command) {
+    if(command === "show") {
+      var all = this.menu[0].querySelectorAll('li[class="menu-option"]');
+      if(this.ctrlr.editable) {
+        if(this.selection) {
+          all.item(0).style.display = "";
+          all.item(1).style.display = "";
+          all.item(2).style.display = "";
+        } else {
+          all.item(0).style.display = "none";
+          all.item(1).style.display = "none";
+          all.item(2).style.display = "";
+        }
+      } else {
+        all.item(0).style.display = "";
+        all.item(1).style.display = "none";
+        all.item(2).style.display = "none";
+      }
+      this.menu[0].style.display = "block";
+    } else {
+      this.menu[0].style.display = "none";
+    }
+  };
+
+  _.showTouchCursors = function() {
+    this.ctrlr.container.prepend(this.touchcursors);
+    var self = this;
+    if(this.selection) {
+      self.touchcursor[0].style.display = "";
+      self.touchanticursor[0].style.display = "";
+      setTimeout(function() {
+        if(self.selection && self.touchcursors[0]) {
+          var bounds = self.touchcursors[0].getBoundingClientRect();
+          if(!self.touchcursor.dragging) {
+            var sbounds = self.selection.ends[R].jQ[0].getBoundingClientRect();
+            self.touchcursor[0].style.transform = 'translate(' + (sbounds.right - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+          }
+          if(!self.touchanticursor.dragging) {
+            var sbounds = self.selection.ends[L].jQ[0].getBoundingClientRect();
+            self.touchanticursor[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+          }
+        }
+      }, 0);
+      this.selection.clear = function() {
+        Selection.prototype.clear.apply(this, arguments);
+        if(!self.touchcursor.dragging && !self.touchanticursor.dragging) {
+          self.touchanticursor[0].style.display = "none";
+          self.touchcursor[0].style.display = "none";
+        }
+      };
+    } else if(self.ctrlr.editable){
+      self.touchcursor[0].style.display = "";
+      setTimeout(function() {
+        if(self.jQ[0]) {
+          var bounds = self.touchcursors[0].getBoundingClientRect();
+          var sbounds = self.jQ[0].getBoundingClientRect();
+          self.touchcursor[0].style.transform = 'translate(' + (sbounds.left - bounds.left) +'px, ' + (sbounds.bottom - bounds.top) + 'px)';
+        }
+      }, 0);
+    }
+  }
 });
 
 var Selection = P(Fragment, function(_, super_) {
