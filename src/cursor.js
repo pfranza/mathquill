@@ -410,6 +410,7 @@ var Cursor = P(Point, function(_) {
     e.stopPropagation();
     e.preventDefault();
     this.dragging = true;
+    this.showmenu = true;
     this.last = this.start = { x: e.originalEvent.touches[0].pageX, y: e.originalEvent.touches[0].pageY };
   };
 
@@ -451,6 +452,7 @@ var Cursor = P(Point, function(_) {
         if (!self.anticursor) self.startSelection();
         self.ctrlr.seek(undefined, x, y).cursor.select();
       }
+      this.showmenu &= Math.abs(this.start.x - x) <= 5 && Math.abs(this.start.y - y) <= 5;
       var bounds = self.touchcursors[0].getBoundingClientRect();
       this[0].style.transform = 'translate(' + (x - bounds.left - window.scrollX) +'px, ' + (y - bounds.top - window.scrollY) + 'px)';
   };
@@ -461,7 +463,7 @@ var Cursor = P(Point, function(_) {
       var self = this;
       var x = this.last.x;
       var y = this.last.y;
-      if (Math.abs(this.start.x - x) <= 20 && Math.abs(this.start.y - y) <= 20) {
+      if (this.showmenu) {
         var bounds = self.cursor.touchcursors[0].getBoundingClientRect();
         this.cursor.menu[0].style.left = (x - window.scrollX - bounds.left) + "px";
         this.cursor.menu[0].style.top = (y - window.scrollY - 44 - bounds.top) + "px";
