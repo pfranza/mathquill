@@ -59,19 +59,17 @@ Controller.open(function(_) {
       // mouseup on page outside field, but even outside page, except iframes: https://github.com/mathquill/mathquill/commit/8c50028afcffcace655d8ae2049f6e02482346c5#commitcomment-6175800
     });
 
-    var holdtimeout = undefined;
+    var holdtimeout = null;
+    var doubletaptimeout = null;
     var start;
     var last;
 
     var touchselect = function(ctrlr, cursor) {
-      holdtimeout = undefined;
       var x = last.x;
       var y = last.y;
-      if (Math.abs(start.x - x) <= 20 && Math.abs(start.y - y) <= 20) {
-        var bounds = cursor.jQ[0].getBoundingClientRect();
-        ctrlr.selectDir((bounds.left - x) > (x - bounds.right) ? L : R);
-        cursor.showTouchCursors();
-      }
+      var bounds = cursor.jQ[0].getBoundingClientRect();
+      ctrlr.selectDir((bounds.left - x) > (x - bounds.right) ? L : R);
+      cursor.showTouchCursors();
     }
 
     this.container.bind('touchstart.mathquill', function(e) {
@@ -88,6 +86,7 @@ Controller.open(function(_) {
       ctrlr.seek($(e.target), start.x, start.y).cursor.startSelection();
       cursor.showTouchCursors();
       holdtimeout = setTimeout(function() {
+        holdtimeout = null;
         touchselect(ctrlr, cursor);
       }, 500);
     });
@@ -95,14 +94,32 @@ Controller.open(function(_) {
     this.container.bind('touchmove.mathquill', function(e) {
       e.stopPropagation();
       last = { x: e.originalEvent.touches[0].pageX, y: e.originalEvent.touches[0].pageY };
+      var x = last.x;
+      var y = last.y;
+      if ((Math.abs(start.x - x) > 5 || Math.abs(start.y - y) > 5) && holdtimeout !== null) {
+        clearTimeout(holdtimeout);
+        holdtimeout = null;
+      }
     });
 
     this.container.bind('touchend.mathquill touchcancel.mathquill', function(e) {
-      clearTimeout(holdtimeout);
       var rootjQ = $(e.target).closest('.mq-root-block');
       var root = Node.byId[rootjQ.attr(mqBlockId) || ultimateRootjQ.attr(mqBlockId)];
       var ctrlr = root.controller, cursor = ctrlr.cursor, blink = cursor.blink;
       var textareaSpan = ctrlr.textareaSpan, textarea = ctrlr.textarea;
+      if(holdtimeout !== null) {
+        clearTimeout(holdtimeout);
+        holdtimeout = null;
+        if(doubletaptimeout === null)  {
+          doubletaptimeout = setTimeout(function() {
+            doubletaptimeout = null;
+          }, 500);
+        } else {
+          clearTimeout(doubletaptimeout);
+          doubletaptimeout = null;
+          touchselect(ctrlr, cursor);
+        }
+      }
       e.preventDefault();
       if (ctrlr.blurred) {
         if (!ctrlr.editable) rootjQ.prepend(textareaSpan);
