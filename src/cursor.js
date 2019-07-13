@@ -452,7 +452,7 @@ var Cursor = P(Point, function(_) {
         if (!self.anticursor) self.startSelection();
         self.ctrlr.seek(undefined, x, y).cursor.select();
       }
-      this.showmenu &= Math.abs(this.start.x - x) <= 5 && Math.abs(this.start.y - y) <= 5;
+      this.showmenu &= Math.abs(this.start.x - x) <= 20 && Math.abs(this.start.y - y) <= 20;
       var bounds = self.touchcursors[0].getBoundingClientRect();
       this[0].style.transform = 'translate(' + (x - bounds.left - window.scrollX) +'px, ' + (y - bounds.top - window.scrollY) + 'px)';
   };

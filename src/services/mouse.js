@@ -96,7 +96,7 @@ Controller.open(function(_) {
       last = { x: e.originalEvent.touches[0].pageX, y: e.originalEvent.touches[0].pageY };
       var x = last.x;
       var y = last.y;
-      if ((Math.abs(start.x - x) > 5 || Math.abs(start.y - y) > 5) && holdtimeout !== null) {
+      if ((Math.abs(start.x - x) > 20 || Math.abs(start.y - y) > 20) && holdtimeout !== null) {
         clearTimeout(holdtimeout);
         holdtimeout = null;
       }
