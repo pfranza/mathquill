@@ -928,9 +928,7 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       self.fakeends[R] = self.parameter[self.parameter.length - 1];
       // Default move directly to first parameter
       self.moveTowards = function(dir, cursor, updown) {
-        var updownInto = updown && this[updown+'Into'];
         cursor.insAtDirEnd(-dir, this.fakeends[-dir])
-        //cursor.insDirOf(-dir, updownInto || this.fakeends[-dir]);
       };
 
       // modified to use parameter array
@@ -957,12 +955,8 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
           var point = cursor.anticursor.ancestors[p.id];
           if(point instanceof Point) {
             point = point.parent;
-            // cursor[L] = point[L];
-            // cursor[R] = point[R];
-            // cursor.parent = point.parent;
-          } //else {
-            cursor.insAtDirEnd(-dir, point);
-          // }
+          }
+          cursor.insAtDirEnd(-dir, point);
         } else {
           cursor.insDirOf(-dir, this);
         }

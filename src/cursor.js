@@ -423,44 +423,22 @@ var Cursor = P(Point, function(_) {
       this.blockunselectinto = false;
       this.blockselectoutof = false;
       var sbounds = self.selection.jQ[0].getBoundingClientRect();
-      var mirrored = false;
-      if(self.selection.ends[L][L] === self[L] && sbounds.left + sbounds.width / 2 < x - window.scrollX) {
-        self[L] = self.selection.ends[R];
-        self[R] = self.selection.ends[R][R];
-        self.parent = self[L].parent;
-        if(!self._anticursor || self._anticursor.ref !== self.anticursor) {
-          self._anticursor = self.anticursor;
-          self._anticursor.ref = self.anticursor = Point();
-        }
-        self.anticursor[L] = self.selection.ends[L][L];
-        self.anticursor[R] = self.selection.ends[L];
-        self.anticursor.parent = self[R].parent;
-        mirrored = true;
-      } else if(self.selection.ends[R][R] === self[R] && sbounds.left + sbounds.width / 2 > x - scrollX) {
-        self[L] = self.selection.ends[L][L];
-        self[R] = self.selection.ends[L];
-        self.parent = self[R].parent;
-        if(!self._anticursor || self._anticursor.ref !== self.anticursor) {
-          self._anticursor = self.anticursor;
-          self._anticursor.ref = self.anticursor = Point();
-        }
-        self.anticursor[L] = self.selection.ends[R];
-        self.anticursor[R] = self.selection.ends[R][R];
-        self.anticursor.parent = self[L].parent;
-        mirrored = true;
-      }
-      if(mirrored) {
-        var dir = self.selection.ends[L][L] === self[L] ? L : R;
-        if(self.anticursor[dir].id in self._anticursor.ancestors) {
-          self._anticursor.ref = self.anticursor = self._anticursor;
-        } else {
-          var anticursor = self.anticursor;
-          var ancestors = anticursor.ancestors = {}; // a map from each ancestor of
-          // the anticursor, to its child that is also an ancestor; in other words,
-          // the anticursor's ancestor chain in reverse order
-          for (var ancestor = anticursor; ancestor.parent; ancestor = ancestor.parent) {
-            ancestors[ancestor.parent.id] = ancestor;
-          }
+      var dir = self.selection.ends[L][L] === self[L] ? L : R;
+      if((dir === L && sbounds.left + sbounds.width / 2 < x - window.scrollX) || (dir === R && sbounds.left + sbounds.width / 2 > x - scrollX)) {
+        var re = dir === L ? self : self.anticursor;
+        var le = dir === R ? self : self.anticursor;
+        re[L] = self.selection.ends[R];
+        re[R] = self.selection.ends[R][R];
+        le[L] = self.selection.ends[L][L];
+        le[R] = self.selection.ends[L];
+        self.parent = self[dir].parent;
+        self.anticursor.parent = self[-dir].parent;
+        var anticursor = self.anticursor;
+        var ancestors = anticursor.ancestors = {}; // a map from each ancestor of
+        // the anticursor, to its child that is also an ancestor; in other words,
+        // the anticursor's ancestor chain in reverse order
+        for (var ancestor = anticursor; ancestor.parent; ancestor = ancestor.parent) {
+          ancestors[ancestor.parent.id] = ancestor;
         }
       }
     }
@@ -477,33 +455,7 @@ var Cursor = P(Point, function(_) {
         self.ctrlr.seek(undefined, x, y);
       } else if(self.selection.jQ.length == 1) {
         var sbounds = self.selection.jQ[0].getBoundingClientRect();
-        // if((self.selection.ends[L][L] === self[L] && sbounds.left + sbounds.width / 2 < x) || (self.selection.ends[R][R] === self[R] && sbounds.left + sbounds.width / 2 > x)) {
-        //   var l = self[L];
-        //   var r = self[R];
-        //   var p = self.parent;
-        //   // var a = self.ancestors;
-        //   self[L] = self.anticursor[L];
-        //   self[R] = self.anticursor[R];
-        //   self.parent = self.anticursor.parent;
-        //   // self.ancestors = self.anticursor.ancestors;
-        //   self.anticursor[L] = l;
-        //   self.anticursor[R] = r;
-        //   self.anticursor.parent = p;
-        //   // self.anticursor.ancestors = a;
-        //   // if(!self.anticursor.ancestor) {
-        //   //   var ancestors = self.anticursor.ancestors = {}; // a map from each ancestor of
-        //   //   // the anticursor, to its child that is also an ancestor; in other words,
-        //   //   // the anticursor's ancestor chain in reverse order
-        //   //   for (var ancestor = self.anticursor; ancestor.parent; ancestor = ancestor.parent) {
-        //   //     ancestors[ancestor.parent.id] = ancestor;
-        //   //   }
-        //   // }
-        // }
-
-        //if (!self.anticursor) self.startSelection();
-        var dir = self.selection.ends[L][L] === self[L] ? L : R;//self.selection.ends[L].jQ.offset().left < self.selection.ends[R].jQ.offset().left
-        //self.ctrlr.seek(undefined, x, y).cursor.select();
-        //self.ctrlr.seek(self.parent.jQ, x, y).cursor.select();
+        var dir = self.selection.ends[L][L] === self[L] ? L : R;
         var seeked = false;
         self.selection.clear();
         if(this.blockunselectinto && ((dir == L && x - window.scrollX < sbounds.left) || (dir == R && x - window.scrollX > sbounds.right))) {
@@ -514,20 +466,6 @@ var Cursor = P(Point, function(_) {
           seeked = true;
           this.blockselectoutof = true;
         }
-        // if(!seeked && self[dir] != 0) {
-        //   var dirbounds = self[dir].jQ[0].getBoundingClientRect();
-        //   if(x - window.scrollX < (dirbounds.left + dirbounds.right) / 2) {
-        //     self.ctrlr.selectDir(dir);
-        //     seeked = true;
-        //   }
-        // }
-        // if(!seeked && self[-dir] != 0) {
-        //   var dirbounds = self[-dir].jQ[0].getBoundingClientRect();
-        //   if(x - window.scrollX > (dirbounds.left + dirbounds.right) / 2) {
-        //     self.ctrlr.selectDir(-dir);
-        //     seeked = true;
-        //   }
-        // }
         if(!seeked && self[L] != 0) {
           var dirbounds = self[L].jQ[0].getBoundingClientRect();
           if(x - window.scrollX < (dirbounds.left + dirbounds.right) / 2) {
@@ -545,7 +483,7 @@ var Cursor = P(Point, function(_) {
         if(!seeked && this.blockselectoutof && ((dir == L && x - window.scrollX >= sbounds.left) || (dir == R && x - window.scrollX <= sbounds.right))) {
           this.blockselectoutof = false;
         }
-        else if(!seeked && !this.blockselectoutof && self[dir] == 0) {
+        else if(!seeked && !this.blockselectoutof && self[dir] == 0 && self.parent.parent) {
           var end = self[-dir];
           var parent = self.parent;
           self.parent.selectOutOf(dir, self);
@@ -559,25 +497,17 @@ var Cursor = P(Point, function(_) {
             self.select();
             seeked = true;
           }
-          //self.ctrlr.seek(undefined, x, y).cursor.select();
         }
         if(!seeked) {
           self.select();
         }
         if(!self.selection) {
           // Hide non dragging cursor
-          self.touchanticursor.other[0].style.display = "none";
+          this.other[0].style.display = "none";
         }
-        // while (self[dir]) {
-
-        // }
-        // var sbounds2 = self.selection.jQ[0].getBoundingClientRect();
-        // if(sbounds.left != sbounds2.left) {
-        //   console.log("??");
-        // }
       } else {
         // Hide non dragging cursor
-        self.touchanticursor.other[0].style.display = "none";
+        this.other[0].style.display = "none";
       }
       this.showmenu &= Math.abs(this.start.x - x) <= 20 && Math.abs(this.start.y - y) <= 20;
       var bounds = self.touchcursors[0].getBoundingClientRect();
