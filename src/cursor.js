@@ -32,6 +32,9 @@ var Cursor = P(Point, function(_) {
 
     var menu = this.menu = $('<div class="mathquill-edit-menu"><ul class="menu-options"><li class="menu-option">Copy</li><li class="menu-option">Cut</li><li class="menu-option">Paste</li></ul></div>');
 
+    var oldtouchcursors = this.touchcursors;
+    this.touchcursors = $('<span></span>');
+    this.touchcursors.append(oldtouchcursors);
     this.touchcursors.append(menu);
 
     var self = this;
@@ -416,6 +419,7 @@ var Cursor = P(Point, function(_) {
     e.preventDefault();
     this.dragging = true;
     this.showmenu = true;
+    this.cursor.toggleMenu("hide");
     this.last = this.start = { x: e.originalEvent.touches[0].pageX, y: e.originalEvent.touches[0].pageY };
     var x = this.last.x;
     var self = this.cursor;
@@ -522,9 +526,35 @@ var Cursor = P(Point, function(_) {
       var x = this.last.x;
       var y = this.last.y;
       if (this.showmenu) {
-        var bounds = self.cursor.touchcursors[0].getBoundingClientRect();
-        this.cursor.menu[0].style.left = (x - window.scrollX - bounds.left) + "px";
-        this.cursor.menu[0].style.top = (y - window.scrollY - 44 - bounds.top) + "px";
+        var bounds = this[0].getBoundingClientRect();
+        var x = (bounds.left + bounds.right) / 2;
+        var y = bounds.top;
+        //this.cursor.menu[0].style.left = (x - window.scrollX - bounds.left) + "px";
+        //this.cursor.menu[0].style.top = (y - window.scrollY - 44 - bounds.top) + "px";
+        // var y = this.last.y - 22;
+        var windowHeight = $(window).height();
+        var windowWidth = $(window).width();
+        if(y > windowHeight / 2 && x <= windowWidth / 2) {
+          this.cursor.menu.css("left", x);
+          this.cursor.menu.css("bottom", windowHeight - y);
+          this.cursor.menu.css("right", "auto");
+          this.cursor.menu.css("top", "auto");
+        } else if(ey > windowHeight / 2 && x > windowWidth / 2) {
+          this.cursor.menu.css("right", windowWidth - x);
+          this.cursor.menu.css("bottom", windowHeight - y);
+          this.cursor.menu.css("left", "auto");
+          this.cursor.menu.css("top", "auto");
+        } else if(y <= windowHeight / 2 && x <= windowWidth / 2) {
+          this.cursor.menu.css("left", x);
+          this.cursor.menu.css("top", y);
+          this.cursor.menu.css("right", "auto");
+          this.cursor.menu.css("bottom", "auto");
+        } else {
+          this.cursor.menu.css("right", windowWidth - x);
+          this.cursor.menu.css("top", y);
+          this.cursor.menu.css("left", "auto");
+          this.cursor.menu.css("bottom", "auto");
+        }
         this.cursor.toggleMenu("show");
       }
       if(this.cursor.selection) {
