@@ -319,29 +319,32 @@ var Cursor = P(Point, function(_) {
     this.selectionChanged();
     this.ctrlr.container.prepend(this.touchcursors);
     var self = this;
-    if(self.touchcursor[0].style.display == "") {
+    if(self.touchcursor[0].style.display == "" || self.touchanticursor[0].style.display == "") {
+      self.touchcursor[0].style.display = "";
       self.touchanticursor[0].style.display = "";
       setTimeout(function() {
         if(self.selection && self.touchcursors[0]) {
           var bounds = self.touchcursors[0].getBoundingClientRect();
+          var rbounds = self.selection.ends[R].jQ[0].getBoundingClientRect();
+          var lbounds = self.selection.ends[L].jQ[0].getBoundingClientRect();
           var setright = function(touchcursor) {
-            var sbounds = self.selection.ends[R].jQ[0].getBoundingClientRect();
+            var sbounds = rbounds;
             touchcursor.last = { x: sbounds.right - bounds.left, y: sbounds.bottom - bounds.top};
             touchcursor[0].style.transform = 'translate(' + touchcursor.last.x +'px, ' + touchcursor.last.y + 'px)';
           }
           var setleft = function(touchcursor) {
-            var sbounds = self.selection.ends[L].jQ[0].getBoundingClientRect();
+            var sbounds = lbounds;
             touchcursor.last = { x: sbounds.left - bounds.left, y: sbounds.bottom - bounds.top};
             touchcursor[0].style.transform = 'translate(' + touchcursor.last.x +'px, ' + touchcursor.last.y + 'px)';
           }
           if(self.touchcursor.dragging) {
-            if(self.selection.ends[L][L] === self.touchanticursor[L] ^ self.touchcursor.last.x < self.touchanticursor.last.x) {
+            if(self.touchcursor.last.x - window.scrollX < (rbounds.right + lbounds.left) / 2) {
               setright(self.touchanticursor);
             } else {
               setleft(self.touchanticursor);
             }
           } else if(self.touchanticursor.dragging) {
-            if(self.selection.ends[L][L] === self.touchcursor[L] ^ self.touchanticursor.last.x < self.touchcursor.last.x) {
+            if(self.touchanticursor.last.x -window.scrollX < (rbounds.right + lbounds.left) / 2) {
               setright(self.touchcursor);
             } else {
               setleft(self.touchcursor);
@@ -412,6 +415,37 @@ var Cursor = P(Point, function(_) {
     this.dragging = true;
     this.showmenu = true;
     this.last = this.start = { x: e.originalEvent.touches[0].pageX, y: e.originalEvent.touches[0].pageY };
+    var x = this.last.x;
+    var self = this.cursor;
+    if(self.selection) {
+      this.blockunselectinto = false;
+      this.blockselectoutof = false;
+      var sbounds = self.selection.jQ[0].getBoundingClientRect();
+      if((self.selection.ends[L][L] === self[L] && sbounds.left + sbounds.width / 2 < x - window.scrollX) || (self.selection.ends[R][R] === self[R] && sbounds.left + sbounds.width / 2 > x - scrollX)) {
+        self.selection.clear();
+        var l = self[L];
+        var r = self[R];
+        var p = self.parent;
+        // var a = self.ancestors;
+        self[L] = self.anticursor[L];
+        self[R] = self.anticursor[R];
+        self.parent = self.anticursor.parent;
+        // self.ancestors = self.anticursor.ancestors;
+        self.anticursor[L] = l;
+        self.anticursor[R] = r;
+        self.anticursor.parent = p;
+        self.select();
+        // self.anticursor.ancestors = a;
+        // if(!self.anticursor.ancestor) {
+        //   var ancestors = self.anticursor.ancestors = {}; // a map from each ancestor of
+        //   // the anticursor, to its child that is also an ancestor; in other words,
+        //   // the anticursor's ancestor chain in reverse order
+        //   for (var ancestor = self.anticursor; ancestor.parent; ancestor = ancestor.parent) {
+        //     ancestors[ancestor.parent.id] = ancestor;
+        //   }
+        // }
+      }
+    }
   };
 
   _.onCursorHandleTouchMove = function(e) {
@@ -425,32 +459,109 @@ var Cursor = P(Point, function(_) {
         self.ctrlr.seek(undefined, x, y);
       } else {
         var sbounds = self.selection.jQ[0].getBoundingClientRect();
+        // if((self.selection.ends[L][L] === self[L] && sbounds.left + sbounds.width / 2 < x) || (self.selection.ends[R][R] === self[R] && sbounds.left + sbounds.width / 2 > x)) {
+        //   var l = self[L];
+        //   var r = self[R];
+        //   var p = self.parent;
+        //   // var a = self.ancestors;
+        //   self[L] = self.anticursor[L];
+        //   self[R] = self.anticursor[R];
+        //   self.parent = self.anticursor.parent;
+        //   // self.ancestors = self.anticursor.ancestors;
+        //   self.anticursor[L] = l;
+        //   self.anticursor[R] = r;
+        //   self.anticursor.parent = p;
+        //   // self.anticursor.ancestors = a;
+        //   // if(!self.anticursor.ancestor) {
+        //   //   var ancestors = self.anticursor.ancestors = {}; // a map from each ancestor of
+        //   //   // the anticursor, to its child that is also an ancestor; in other words,
+        //   //   // the anticursor's ancestor chain in reverse order
+        //   //   for (var ancestor = self.anticursor; ancestor.parent; ancestor = ancestor.parent) {
+        //   //     ancestors[ancestor.parent.id] = ancestor;
+        //   //   }
+        //   // }
+        // }
 
-        if((self.selection.ends[L][L] === self[L] && sbounds.left + sbounds.width / 2 < x) || (self.selection.ends[R][R] === self[R] && sbounds.left + sbounds.width / 2 > x)) {
-          var l = self[L];
-          var r = self[R];
-          var p = self.parent;
-          var a = self.ancestors;
-          self[L] = self.anticursor[L];
-          self[R] = self.anticursor[R];
-          self.parent = self.anticursor.parent;
-          self.ancestors = self.anticursor.ancestors;
-          self.anticursor[L] = l;
-          self.anticursor[R] = r;
-          self.anticursor.parent = p;
-          self.anticursor.ancestors = a;
-          if(!self.anticursor.ancestor) {
-            var ancestors = self.anticursor.ancestors = {}; // a map from each ancestor of
-            // the anticursor, to its child that is also an ancestor; in other words,
-            // the anticursor's ancestor chain in reverse order
-            for (var ancestor = self.anticursor; ancestor.parent; ancestor = ancestor.parent) {
-              ancestors[ancestor.parent.id] = ancestor;
-            }
+        //if (!self.anticursor) self.startSelection();
+        var dir = self.selection.ends[L][L] === self[L] ? L : R;//self.selection.ends[L].jQ.offset().left < self.selection.ends[R].jQ.offset().left
+        //self.ctrlr.seek(undefined, x, y).cursor.select();
+        //self.ctrlr.seek(self.parent.jQ, x, y).cursor.select();
+        var seeked = false;
+        self.selection.clear();
+        if(this.blockunselectinto && ((dir == L && x - window.scrollX < sbounds.left) || (dir == R && x - window.scrollX > sbounds.right))) {
+          this.blockunselectinto = false;
+        } else if(!seeked && !this.blockunselectinto && ((dir == L && x - window.scrollX > sbounds.left) || (dir == R && x - window.scrollX < sbounds.right)) && self[-dir].id in self.anticursor.ancestors) {
+          self[-dir].unselectInto(-dir, self);
+          self.select();
+          seeked = true;
+          this.blockselectoutof = true;
         }
+        // if(!seeked && self[dir] != 0) {
+        //   var dirbounds = self[dir].jQ[0].getBoundingClientRect();
+        //   if(x - window.scrollX < (dirbounds.left + dirbounds.right) / 2) {
+        //     self.ctrlr.selectDir(dir);
+        //     seeked = true;
+        //   }
+        // }
+        // if(!seeked && self[-dir] != 0) {
+        //   var dirbounds = self[-dir].jQ[0].getBoundingClientRect();
+        //   if(x - window.scrollX > (dirbounds.left + dirbounds.right) / 2) {
+        //     self.ctrlr.selectDir(-dir);
+        //     seeked = true;
+        //   }
+        // }
+        if(!seeked && self[L] != 0) {
+          var dirbounds = self[L].jQ[0].getBoundingClientRect();
+          if(x - window.scrollX < (dirbounds.left + dirbounds.right) / 2) {
+            self.ctrlr.selectDir(L);
+            seeked = true;
+          }
         }
+        if(!seeked && self[R] != 0) {
+          var dirbounds = self[R].jQ[0].getBoundingClientRect();
+          if(x - window.scrollX > (dirbounds.left + dirbounds.right) / 2) {
+            self.ctrlr.selectDir(R);
+            seeked = true;
+          }
+        }
+        if(!seeked && this.blockselectoutof && ((dir == L && x - window.scrollX >= sbounds.left) || (dir == R && x - window.scrollX <= sbounds.right))) {
+          this.blockselectoutof = false;
+        }
+        else if(!seeked && !this.blockselectoutof && self[dir] == 0) {
+          var end = self[-dir];
+          var anticursor = self.anticursor;
+          self.parent.selectOutOf(dir, self);
+          var dirbounds = self[-dir].jQ[0].getBoundingClientRect();
+          if(((dir == L) && (x - window.scrollX < Math.max((dirbounds.left + dirbounds.right) / 2, sbounds.left))) || ((dir == R) && (x - window.scrollX > Math.min((dirbounds.left + dirbounds.right) / 2, sbounds.right)))) {
+            self[-dir] = end;
+            self[dir] = 0;
+            self.anticursor = anticursor;
+            self.parent = self.anticursor.parent;
+          } else {
+            this.blockunselectinto = true;
+            self.select();
+            seeked = true;
+          }
+          //self.ctrlr.seek(undefined, x, y).cursor.select();
+        }
+        if(!seeked) {
+          self.select();
+        }
+        if(!self.selection) {
+          // Hide non dragging cursor
+          if(self.touchanticursor.dragging) {
+            self.touchcursor[0].style.display = "none";
+          } else {
+            self.touchanticursor[0].style.display = "none";
+          }
+        }
+        // while (self[dir]) {
 
-        if (!self.anticursor) self.startSelection();
-        self.ctrlr.seek(undefined, x, y).cursor.select();
+        // }
+        // var sbounds2 = self.selection.jQ[0].getBoundingClientRect();
+        // if(sbounds.left != sbounds2.left) {
+        //   console.log("??");
+        // }
       }
       this.showmenu &= Math.abs(this.start.x - x) <= 20 && Math.abs(this.start.y - y) <= 20;
       var bounds = self.touchcursors[0].getBoundingClientRect();
@@ -460,6 +571,7 @@ var Cursor = P(Point, function(_) {
   _.onCursorHandleTouchEnd = function(e) {
       e.stopPropagation();
       this.dragging = false;
+      this.blockunselectinto = false;
       var self = this;
       var x = this.last.x;
       var y = this.last.y;

@@ -926,7 +926,7 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       self.fakeends = [];
       self.fakeends[L] = self.parameter[0];
       self.fakeends[R] = self.parameter[self.parameter.length - 1];
-      // Default move to directly to first parameter
+      // Default move directly to first parameter
       self.moveTowards = function(dir, cursor, updown) {
         var updownInto = updown && this[updown+'Into'];
         cursor.insAtDirEnd(-dir, this.fakeends[-dir])
@@ -934,51 +934,42 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       };
 
       // modified to use parameter array
-      self.seek = function(pageX, pageY, cursor) {
-        function getDistance(block) {
-          var bounds = block.jQ[0].getBoundingClientRect();
-          var dxl = bounds.left - pageX;
-          var dxr = bounds.right - pageX;
-          var dyt = bounds.top - pageY;
-          var dyb = bounds.bottom - pageY;
-          bounds.distanceX = dxl * dxr < 0 ? 0 : Math.min(dxl * dxl, dxr * dxr);
-          bounds.distanceY =  dyt * dyb < 0 ? 0 : Math.min(dyt * dyt, dyb * dyb);
-          bounds.distance = bounds.distanceX + bounds.distanceY;
-          return bounds;
-        }
-    
-        var cmd = this;
-        var cmdBounds = getDistance(cmd);
-    
-        if (cmdBounds.distanceX != 0) {
-          return pageX < cmdBounds.left ? cursor.insLeftOf(cmd) : cursor.insRightOf(cmd);
-        }
-    
-        var nextblock = { distance: Infinity };
-        this.parameter.forEach(function(block) {
-          var bounds = getDistance(block);
-          if(bounds.distance < nextblock.distance) {
-            bounds.node = block;
-            nextblock = bounds;
-            if(bounds.distance === 0) {
-              return false;
-            }
-          }
-        });
-        if(nextblock.distance !== Infinity) {
-          if(nextblock.distanceX === 0) {
-            return nextblock.node.seek(pageX, pageY, cursor);
-          }
-          return pageX < nextblock.left ? cursor.insAtLeftEnd(nextblock.node) : cursor.insAtRightEnd(nextblock.node);
-        }
+      self.seek = function() {
+        var wrapper = Object.create(self);
+        wrapper.eachChild = function(func) {
+          return self.parameter.forEach(func);
+        };
+        super_.seek.apply(wrapper, arguments);
       };
 
       self.deleteTowards = function(dir, cursor) {
         cursor[dir] = this.remove()[dir];
       };
+
+      self.unselectInto = function(dir, cursor) {
+        var p = null;
+        this.parameter.forEach(function(param) {
+          if(param.id in cursor.anticursor.ancestors) {
+            p = param;
+          }
+        });
+        if(p != null) {
+          var point = cursor.anticursor.ancestors[p.id];
+          if(point instanceof Point) {
+            point = point.parent;
+            // cursor[L] = point[L];
+            // cursor[R] = point[R];
+            // cursor.parent = point.parent;
+          } //else {
+            cursor.insAtDirEnd(-dir, point);
+          // }
+        } else {
+          cursor.insDirOf(-dir, this);
+        }
+      };
     } else {
       self.moveTowards = function(dir, cursor, updown) {
-        cursor.insDirOf(dir, self);
+        cursor.insDirOf(dir, this);
       };
       self.seek = function(pageX, cursor) {
         // insert at whichever side the click was closer to
@@ -990,6 +981,9 @@ LatexCmds.formula = P(MathCommand, function(_, super_) {
       self.deleteTowards = function(dir, cursor) {
         cursor[dir] = this.remove()[dir];
       };
+      // self.selectOutOf = function(dir, cursor) {
+      //     cursor.insDirOf(dir, self);
+      // };
     }
   }
 

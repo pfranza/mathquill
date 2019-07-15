@@ -167,8 +167,12 @@ var MathCommand = P(MathElement, function(_, super_) {
       var dxr = bounds.right - pageX;
       var dyt = bounds.top - pageY;
       var dyb = bounds.bottom - pageY;
-      bounds.distanceX = dxl * dxr < 0 ? 0 : Math.min(dxl * dxl, dxr * dxr);
-      bounds.distanceY =  dyt * dyb < 0 ? 0 : Math.min(dyt * dyt, dyb * dyb);
+      bounds.distanceXl = dxl * dxl;
+      bounds.distanceXr = dxr * dxr;
+      bounds.distanceX = dxl * dxr < 0 ? 0 : Math.min(bounds.distanceXl, bounds.distanceXr);
+      bounds.distanceYt = dyt * dyt;
+      bounds.distanceYb = dyb * dyb;
+      bounds.distanceY =  dyt * dyb < 0 ? 0 : Math.min(bounds.distanceYt, bounds.distanceYb);
       bounds.distance = bounds.distanceX + bounds.distanceY;
       return bounds;
     }
@@ -176,22 +180,22 @@ var MathCommand = P(MathElement, function(_, super_) {
     var cmd = this;
     var cmdBounds = getDistance(cmd);
 
-    if (cmdBounds.distanceX != 0) {
-      return pageX < cmdBounds.left ? cursor.insLeftOf(cmd) : cursor.insRightOf(cmd);
-    }
-
     var nextblock = { distance: Infinity };
-    cmd.eachChild(function(block) {
-      var bounds = getDistance(block);
-      if(bounds.distance < nextblock.distance) {
-        bounds.node = block;
-        nextblock = bounds;
-        if(bounds.distance === 0) {
-          return false;
+    if(cmdBounds.distanceX == 0) {
+      cmd.eachChild(function(block) {
+        var bounds = getDistance(block);
+        if(bounds.distance < nextblock.distance) {
+          bounds.node = block;
+          nextblock = bounds;
+          if(bounds.distance === 0) {
+            return false;
+          }
         }
-      }
-    });
-    if(nextblock.distance !== Infinity) {
+      });
+    }
+    if (cmdBounds.distanceX != 0 || nextblock.distance === Infinity || cmdBounds.distanceXl < nextblock.distanceX || cmdBounds.distanceXr < nextblock.distanceX) {
+      return pageX < (cmdBounds.left + cmdBounds.right) / 2 ? cursor.insLeftOf(cmd) : cursor.insRightOf(cmd);
+    } else {
       if(nextblock.distanceX === 0) {
         return nextblock.node.seek(pageX, pageY, cursor);
       }
